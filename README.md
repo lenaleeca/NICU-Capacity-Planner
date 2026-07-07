@@ -35,6 +35,6 @@ This uses processed model inputs rather than patient-level data.
 
 ## Author
 
-Yuna Li  
-Email: yunalilondon@gmail.com  
-Handle: @yunalilondon
+Ali BALOACH: ali.baloach@ucalgary.ca
+Na Li: Na.Li@ucalgary.ca
+

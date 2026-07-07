@@ -32,3 +32,9 @@ Site 2,1,3.2,9.1,42.0
 ```
 
 This uses processed model inputs rather than patient-level data.
+
+## Author
+
+Yuna Li  
+Email: yunalilondon@gmail.com  
+Handle: @yunalilondon

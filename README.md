@@ -125,7 +125,7 @@ Do not commit patient-level, identifiable, or confidential health data to this p
 - **Catherine Eastwood** — caeastwo@ucalgary.ca
 - **Ayman Abou Mehrem** — a.aboumehrem@ucalgary.ca
 - **Alexandra Howlett** — alixe.howlett@albertahealthservices.ca
-- **Na Li** — Na.Li@ucalgary.ca
+- **Na Li** — na.li@ucalgary.ca
 
 ## Associated Manuscript
 

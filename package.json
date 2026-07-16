@@ -1,0 +1,7 @@
+{
+  "name": "nicu-capacity-planner",
+  "private": true,
+  "scripts": {
+    "test": "node tests/test_model.js"
+  }
+}

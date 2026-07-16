@@ -1,6 +1,6 @@
 # NICU Capacity Planner
 
-A GitHub Pages–compatible research dashboard implementing the \(M_t/G_t/\infty\) ICU/NICU bed occupancy planning framework described in the associated manuscript.
+A GitHub Pages–compatible research dashboard implementing the \(M_t/G_t/\infty\) ICU/NICU bed occupancy planning framework.
 
 The interface estimates expected bed occupancy, compares capacity-planning strategies, evaluates utilization and length-of-stay sensitivity, and supports manuscript-based validation and scenario analysis.
 

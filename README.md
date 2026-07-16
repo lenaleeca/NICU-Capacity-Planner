@@ -35,7 +35,17 @@ This uses processed model inputs rather than patient-level data.
 
 ## Author
 
-Ali BALOACH: ali.baloach@ucalgary.ca
+Ali R. Baloach: ali.baloach@ucalgary.ca
+
+Maryam Akbari-Moghaddam: maryam.moghaddam@ucalgary.ca
+
+Douglas G. Down: downd@mcmaster.ca
+
+Catherine Eastwood: caeastwo@ucalgary.ca
+
+Ayman Abou Mehrem: a.aboumehrem@ucalgary.ca
+
+Alexandra Howlett: alixe.howlett@albertahealthservices.ca
 
 Na Li: Na.Li@ucalgary.ca
 

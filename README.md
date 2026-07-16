@@ -1,6 +1,6 @@
-# NICU Capacity Planner — Manuscript-Aligned GitHub Pages Version
+# NICU Capacity Planner — Version 4
 
-This is a **fully static** HTML/CSS/JavaScript application. It does not use Flask or Python on the hosted site, so it works directly with GitHub Pages.
+This is a HTML/CSS/JavaScript application. It does not use Flask or Python on the hosted site, so it works directly with GitHub Pages.
 
 ## Included workflows
 

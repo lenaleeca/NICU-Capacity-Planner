@@ -1,19 +1,225 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Browser-based manuscript-aligned ICU/NICU capacity planning dashboard"><title>NICU Capacity Planning Tool</title><link rel="stylesheet" href="styles.css"><script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script><script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script></head><body>
-<div class="app-shell"><aside class="sidebar"><div class="brand"><div class="brand-icon">N</div><div><h1>NICU Planner</h1><p>Manuscript-aligned GitHub Pages app</p></div></div>
-<details open class="panel"><summary>1 · Data source</summary><label>Input mode</label><select id="inputMode"><option value="synthetic">Synthetic 5-site demo</option><option value="processed">Processed daily CSV</option><option value="raw">Raw admissions full pipeline</option></select><label>Upload CSV</label><input id="dataFile" type="file" accept=".csv"><div class="link-row"><a href="data/sample_processed_inputs.csv" download>Processed sample</a><a href="data/sample_raw_admissions.csv" download>Raw sample</a></div><p class="help">Raw columns: site, admission_date, los_days, optional discharge_date/event. Processed columns: site, day, lambda_t, mu_t, sigma2_t.</p></details>
-<details open class="panel"><summary>2 · LOS distribution</summary><label>Selection mode</label><select id="distributionMode"><option value="presets">Manuscript site presets</option><option value="auto">Automatically fit uploaded raw LOS</option><option value="manual">Manual selection</option></select><div id="manualDistribution"><label>Distribution</label><select id="distribution"><option>Lognormal</option><option>Gamma</option><option>Weibull</option><option>Exponential</option><option>Fisk</option></select><label>Shape κ</label><input id="kappa" type="number" value="1.5" step="0.05"><label>Smax</label><input id="smax" type="number" value="60"></div></details>
-<details class="panel"><summary>3 · Preprocessing</summary><label>STL mode</label><select id="stlMode"><option value="preset">Manuscript preset (7/15, degree 1, non-robust)</option><option value="grid">72-configuration grid search</option></select><label>LOS variance rolling window</label><input id="rollingWindow" type="number" value="31"></details>
-<details open class="panel"><summary>4 · Capacity settings</summary><label>Utilization threshold γ</label><input id="gamma" type="number" value="1" min="0.01" max="1" step="0.01"><label>Overflow criterion</label><select id="riskRule"><option value="average daily risk">Average daily risk</option><option value="max daily risk">Maximum daily risk</option></select><label>Demo days</label><input id="days" type="number" value="365"></details>
-<button id="runBtn" class="primary-btn">Run model</button><div id="status" class="status">Ready.</div><p class="privacy-note">All uploaded data stay in the visitor's browser. Do not commit patient-level data to a public repository.</p></aside>
-<main class="content"><section class="hero"><div><p class="eyebrow">Research dashboard · static GitHub Pages version</p><h1>Data-driven ICU/NICU bed occupancy planning</h1><p>From raw admissions or processed daily inputs through LOS fitting, occupancy, capacity strategies, utilization, sensitivity, projections, and manuscript validation.</p></div><div class="formula-card"><span>Core model</span><strong>ρ<sub>t</sub> = Σ λ<sub>t-u</sub>P(S &gt; u | A=t-u)</strong></div></section>
-<nav class="tabs"><button data-tab="overview" class="active">Overview</button><button data-tab="fit">LOS fit</button><button data-tab="preprocess">Preprocessing</button><button data-tab="utilization">Observed utilization</button><button data-tab="sensitivity">Sensitivity</button><button data-tab="projections">Projections</button><button data-tab="validation">Validation</button><button data-tab="downloads">Downloads</button></nav>
-<section id="overview" class="tab active"><div class="cards"><div class="metric-card"><span>Baverage</span><strong id="cardAverage">—</strong><p>Average + buffer</p></div><div class="metric-card"><span>B0.05</span><strong id="card005">—</strong><p>5% overflow-risk capacity</p></div><div class="metric-card"><span>B0.01</span><strong id="card001">—</strong><p>1% overflow-risk capacity</p></div><div class="metric-card"><span>Bmax</span><strong id="cardMax">—</strong><p>Peak + buffer</p></div></div><div class="grid-two"><article class="chart-panel"><h2>Expected occupancy</h2><div id="occupancyChart" class="chart"></div></article><article class="chart-panel"><div class="panel-header"><h2>Utilization</h2><select id="strategySelect"><option value="B_0.05">B0.05</option><option value="B_0.01">B0.01</option><option value="B_max">Bmax</option><option value="B_average">Baverage</option></select></div><div id="utilizationChart" class="chart"></div></article></div><div class="grid-two capacity-grid"><article class="chart-panel"><h2>Capacity by site</h2><div id="capacityChart" class="chart"></div></article><article class="table-panel"><h2>Capacity planning table</h2><div id="summaryTable" class="table-wrap"></div></article></div></section>
-<section id="fit" class="tab"><div class="grid-two"><article class="chart-panel"><h2>Empirical and fitted survival curves</h2><div id="fitChart" class="chart tall"></div></article><article class="table-panel"><h2>Distribution fit comparison</h2><div id="fitTable" class="table-wrap"></div></article></div></section>
-<section id="preprocess" class="tab"><div class="grid-two"><article class="chart-panel"><h2>Smoothed admissions and LOS</h2><div id="preprocessChart" class="chart tall"></div></article><article class="table-panel"><h2>Selected decomposition settings</h2><div id="configTable" class="table-wrap"></div><p class="callout">The browser implementation uses an STL-style LOESS decomposition. The manuscript preset matches the reported windows and degrees; exact numerical replication should be checked against the original analysis code.</p></article></div></section>
-<section id="utilization" class="tab"><article class="table-panel"><h2>Observed occupancy utilization metrics</h2><p>Available when the raw file includes admission dates/LOS or the processed file includes observed_occupancy.</p><div id="utilizationTable" class="table-wrap"></div></article></section>
-<section id="sensitivity" class="tab"><article class="chart-panel"><h2>LOS variance sensitivity</h2><div id="sensitivityChart" class="chart tall"></div></article><article class="table-panel"><div id="sensitivityTable" class="table-wrap"></div></article></section>
-<section id="projections" class="tab"><div class="grid-two"><article class="chart-panel"><h2>Projected capacity by year</h2><div id="projectionChart" class="chart tall"></div></article><article class="table-panel"><h2>Projection summary</h2><div id="projectionTable" class="table-wrap"></div></article></div></section>
-<section id="validation" class="tab"><div class="grid-two"><article class="table-panel"><h2>Manuscript Table 3 comparison</h2><div id="validationTable" class="table-wrap"></div></article><article class="table-panel"><h2>Sanity check</h2><div id="sanityBox"></div><h3>Published utilization targets (mean and SD)</h3><div id="utilizationTargets" class="table-wrap"></div><h3>Published 2030 targets</h3><div id="projectionTargets" class="table-wrap"></div></article></div></section>
-<section id="downloads" class="tab"><article class="table-panel"><h2>Download generated outputs</h2><div class="download-grid"><button data-download="summary">Capacity summary</button><button data-download="daily">Daily occupancy</button><button data-download="fits">LOS fits</button><button data-download="configs">Preprocessing settings</button><button data-download="utilization">Utilization metrics</button><button data-download="sensitivity">Sensitivity</button><button data-download="projectionSummary">Projection summary</button><button data-download="projectionRuns">Projection runs</button></div></article></section>
-</main></div>
-<script src="js/math.js"></script><script src="js/distributions.js"></script><script src="js/preprocessing.js"></script><script src="js/model.js"></script><script src="js/projections.js"></script><script src="js/validation.js"></script><script src="js/app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Clinical-facing ICU and NICU bed occupancy and capacity planning dashboard">
+  <title>NICU Capacity Planner</title>
+  <link rel="stylesheet" href="styles.css?v=5.3">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">N</div>
+        <div>
+          <h1>NICU Planner</h1>
+          <p>Bed occupancy and capacity planning</p>
+        </div>
+      </div>
+
+      <section class="side-panel" aria-labelledby="data-heading">
+        <h2 id="data-heading">1. Data</h2>
+
+        <label for="inputMode">Data source</label>
+        <select id="inputMode">
+          <option value="synthetic">Use test data</option>
+          <option value="raw">Upload patient-stay data</option>
+          <option value="processed">Upload processed daily data</option>
+        </select>
+
+        <label for="dataFile">Upload CSV</label>
+        <input id="dataFile" type="file" accept=".csv,text/csv">
+
+        <div class="sample-links">
+          <a href="./data/sample_raw_admissions.csv" download="sample_raw_admissions.csv">Download patient-stay test data</a>
+          <a href="./data/sample_processed_inputs.csv" download="sample_processed_inputs.csv">Download processed test data</a>
+        </div>
+
+        <details class="format-details">
+          <summary>View required data format</summary>
+          <div class="format-block">
+            <strong>Patient-stay data</strong>
+            <code>site, admission_date, los_days</code>
+            <p>One row per admission. Length of stay is measured in days.</p>
+          </div>
+          <div class="format-block">
+            <strong>Processed daily data</strong>
+            <code>site, day, lambda_t, mu_t, sigma2_t</code>
+            <p>Use this only when daily admission and LOS inputs have already been calculated.</p>
+          </div>
+        </details>
+
+        <p class="background-note">Length-of-stay fitting and data preprocessing run automatically in the background.</p>
+      </section>
+
+      <section class="side-panel" aria-labelledby="scenario-heading">
+        <h2 id="scenario-heading">2. Demand scenario</h2>
+        <label for="scenarioSelect">Admission demand</label>
+        <select id="scenarioSelect">
+          <option value="low">Lower demand (−10%)</option>
+          <option value="baseline" selected>Current demand</option>
+          <option value="high">Higher demand (+10%)</option>
+        </select>
+      </section>
+
+      <section class="side-panel" aria-labelledby="settings-heading">
+        <h2 id="settings-heading">3. Capacity settings</h2>
+
+        <label for="gamma">Target average utilization</label>
+        <div class="number-with-suffix">
+          <input id="gamma" type="number" value="0.85" min="0" max="2" step="0.01" inputmode="decimal">
+          <span id="gammaPercent">85%</span>
+        </div>
+
+        <label for="maxUtilization">Target maximum utilization</label>
+        <div class="number-with-suffix">
+          <input id="maxUtilization" type="number" value="1" min="0" max="2" step="0.01" inputmode="decimal">
+          <span id="maxUtilizationPercent">100%</span>
+        </div>
+
+        <label for="days">Forecasting window (days)</label>
+        <input id="days" type="number" value="365" min="30" max="3650" step="1" inputmode="numeric">
+      </section>
+
+      <button id="runBtn" class="primary-btn" type="button">Run model</button>
+      <div id="status" class="status" role="status" aria-live="polite">Ready.</div>
+      <p class="privacy-note">Uploaded files are processed in this browser. Do not use identifiable patient data on a public device.</p>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <div>
+          <h1>ICU/NICU bed occupancy planning</h1>
+          <p>Upload data, compare demand scenarios, review the recommended capacity, and download the results.</p>
+        </div>
+      </header>
+
+      <section id="overview" class="overview-section">
+        <section class="key-stats" aria-label="Key statistics">
+          <article class="stat-card recommended-stat">
+            <span>Recommended capacity</span>
+            <strong id="statRecommended">—</strong>
+            <p>Total B0.05 beds across modelled sites</p>
+          </article>
+          <article class="stat-card">
+            <span>Average expected occupancy</span>
+            <strong id="statAverageOccupancy">—</strong>
+            <p>Combined daily average across sites</p>
+          </article>
+          <article class="stat-card">
+            <span>Highest site peak</span>
+            <strong id="statPeakOccupancy">—</strong>
+            <p>Largest expected site-level peak</p>
+          </article>
+          <article class="stat-card">
+            <span>Sites modelled</span>
+            <strong id="statSites">—</strong>
+            <p id="statWindow">Forecasting window: —</p>
+          </article>
+        </section>
+
+        <section class="recommendation-panel" aria-labelledby="recommendation-heading">
+          <div class="recommendation-copy">
+            <div class="recommendation-badge">Recommended</div>
+            <h2 id="recommendation-heading">Use B0.05 for balanced planning</h2>
+            <p>B0.05 provides a 5% overflow-risk target while avoiding the larger underutilization associated with B0.01 and Bmax. Final decisions should still consider local staffing, space, and clinical constraints.</p>
+          </div>
+          <div class="recommendation-value">
+            <span>Current scenario</span>
+            <strong id="recommendedValue">—</strong>
+            <p>total beds across sites</p>
+          </div>
+        </section>
+
+        <section class="strategy-grid" aria-label="Capacity strategy comparison">
+          <article class="strategy-card">
+            <div class="strategy-heading"><span>Baverage</span><strong id="cardAverage">—</strong></div>
+            <p>Uses fewer beds and supports efficiency, but has no formal overflow-risk guarantee and may underestimate surge needs.</p>
+          </article>
+          <article class="strategy-card">
+            <div class="strategy-heading"><span>B0.01</span><strong id="card001">—</strong></div>
+            <p>Provides stronger protection against surges, but requires more beds and can reduce routine utilization.</p>
+          </article>
+          <article class="strategy-card">
+            <div class="strategy-heading"><span>Bmax</span><strong id="cardMax">—</strong></div>
+            <p>Plans around peak expected demand with a buffer, offering strong protection but the greatest risk of underutilization.</p>
+          </article>
+        </section>
+
+        <div class="dashboard-grid">
+          <article class="chart-panel">
+            <div class="panel-header">
+              <div>
+                <div class="title-with-help">
+                  <h2>Expected occupancy</h2>
+                  <button class="legend-help" type="button" aria-label="Legend controls: click a legend item to show or hide it; double-click a legend item to isolate it." data-tooltip="Click a legend item to show or hide it. Double-click a legend item to isolate it.">i</button>
+                </div>
+                <p>Expected occupied beds over the forecasting window.</p>
+              </div>
+            </div>
+            <div id="occupancyChart" class="chart" aria-label="Expected occupancy chart"></div>
+          </article>
+
+          <article class="chart-panel">
+            <div class="panel-header">
+              <div>
+                <div class="title-with-help">
+                  <h2>Utilization</h2>
+                  <button class="legend-help" type="button" aria-label="Legend controls: click a legend item to show or hide it; double-click a legend item to isolate it." data-tooltip="Click a legend item to show or hide it. Double-click a legend item to isolate it.">i</button>
+                </div>
+                <p>Expected utilization under the selected capacity strategy.</p>
+              </div>
+              <label class="compact-select">Capacity strategy
+                <select id="strategySelect">
+                  <option value="B_0.05" selected>B0.05 — recommended</option>
+                  <option value="B_average">Baverage</option>
+                  <option value="B_0.01">B0.01</option>
+                  <option value="B_max">Bmax</option>
+                </select>
+              </label>
+            </div>
+            <div id="utilizationChart" class="chart" aria-label="Utilization chart"></div>
+          </article>
+
+          <article class="chart-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Capacity by site</h2>
+                <p>Bed recommendations under each planning strategy.</p>
+              </div>
+            </div>
+            <div id="capacityChart" class="chart" aria-label="Capacity by site chart"></div>
+          </article>
+
+          <article class="download-panel quick-downloads">
+            <div>
+              <p class="eyebrow">Results</p>
+              <h2>Download graphs and results</h2>
+              <p>Capacity summary is the primary downloadable result. Graphs are available as PNG files.</p>
+            </div>
+            <div class="download-actions">
+              <button class="download-primary" type="button" data-download="summary">Download capacity summary CSV</button>
+              <button type="button" data-download="daily">Daily occupancy CSV</button>
+              <button type="button" data-download="fits">Automatic LOS fitting summary CSV</button>
+              <button type="button" data-download="scenarioComparison">Demand scenario comparison CSV</button>
+              <button type="button" data-graph="occupancyChart">Expected occupancy PNG</button>
+              <button type="button" data-graph="utilizationChart">Utilization PNG</button>
+              <button type="button" data-graph="capacityChart">Capacity by site PNG</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="js/math.js?v=5.3"></script>
+  <script src="js/distributions.js?v=5.3"></script>
+  <script src="js/preprocessing.js?v=5.3"></script>
+  <script src="js/model.js?v=5.3"></script>
+  <script src="js/app.js?v=5.3"></script>
+</body>
+</html>

@@ -1,17 +1,587 @@
-"use strict";let state={summary:[],daily:[],fits:[],configs:[],utilization:[],sensitivity:[],projectionSummary:[],projectionRuns:[],raw:null};const $=id=>document.getElementById(id),plotCfg={responsive:true,displaylogo:false};function status(s,t=''){$('status').textContent=s;$('status').className='status '+t;}function table(id,rows,cols){if(!rows||!rows.length){$(id).innerHTML='<p class="help">No results available for this section.</p>';return;}cols=cols||Object.keys(rows[0]);$(id).innerHTML='<table><thead><tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>{let v=r[c];if(typeof v==='number')v=Number.isInteger(v)?v:v.toFixed(2);if(typeof v==='boolean')v='<span class="badge '+(v?'ok':'no')+'">'+(v?'Yes':'No')+'</span>';return'<td>'+(v??'')+'</td>';}).join('')+'</tr>').join('')+'</tbody></table>';}
-function parseFile(file){return new Promise((res,rej)=>Papa.parse(file,{header:true,dynamicTyping:true,skipEmptyLines:true,complete:r=>r.errors.length?rej(new Error(r.errors[0].message)):res(r.data),error:rej}));}function values(id){return $(id).value.split(',').map(Number).filter(Number.isFinite);}function settings(){return{distributionMode:$('distributionMode').value,distribution:$('distribution').value,kappa:Number($('kappa').value),smax:Number($('smax').value),gamma:Number($('gamma').value),riskRule:$('riskRule').value,arrivalMultiplier:Number($('arrivalMultiplier').value),meanLosMultiplier:Number($('meanLosMultiplier').value),varianceMultiplier:Number($('varianceMultiplier').value),scenarioStart:$('scenarioStart').value||null,scenarioEnd:$('scenarioEnd').value||null,actualBeds:Object.fromEntries(NICUValidation.TABLE3.map(x=>[x.site,x.actual_beds]))};}
-async function prepare(){const mode=$('inputMode').value,file=$('dataFile').files[0];state.raw=null;state.configs=[];let rows,fitInputs={};if(mode==='synthetic'){rows=NICUModel.synthetic(Number($('days').value));}else{if(!file)throw new Error('Choose a CSV file.');const parsed=await parseFile(file);if(mode==='raw'){const p=NICUPreprocessing.processRawAdmissions(parsed,{stlMode:$('stlMode').value,rollingWindow:Number($('rollingWindow').value)});rows=p.daily;fitInputs=p.fitsInput;state.raw=p.raw;state.configs=p.configs;}else rows=NICUPreprocessing.validateProcessed(parsed);}let fits={};state.fits=[];if($('distributionMode').value==='auto'){if(!Object.keys(fitInputs).length)throw new Error('Automatic fitting requires raw admissions with individual LOS observations.');for(const[site,recs]of Object.entries(fitInputs)){const f=NICUDistributions.fitAll(recs);fits[site]=f.best;f.fits.forEach(x=>state.fits.push({site,distribution:x.name,rmse:x.rmse,kappa:x.kappa,smax:x.smax,selected:x.name===f.best.name,fit:x,km:f.km}));}}else if($('distributionMode').value==='presets'){for(const[site,p]of Object.entries(NICUModel.PRESETS))state.fits.push({site,distribution:p.distribution,rmse:p.rmse,kappa:p.kappa,smax:p.smax,selected:true});}return{rows,fits};}
-function cards(s){const avg=k=>Math.round(NICUMath.mean(s.map(x=>x[k])));$('cardAverage').textContent=avg('B_average')+' beds';$('card005').textContent=avg('B_0.05')+' beds';$('card001').textContent=avg('B_0.01')+' beds';$('cardMax').textContent=avg('B_max')+' beds';}
-function plots(){const g=Object.groupBy?Object.groupBy(state.daily,x=>x.site):state.daily.reduce((a,x)=>{(a[x.site]??=[]).push(x);return a;},{}),tr=Object.entries(g).map(([site,r])=>({x:r.map(x=>x.date||x.day),y:r.map(x=>x.rho_t),mode:'lines',name:site}));Plotly.newPlot('occupancyChart',tr,{margin:{t:20},xaxis:{title:'Day/date'},yaxis:{title:'Expected occupied beds'}},plotCfg);renderUtil();const strategies=['B_average','B_0.05','B_0.01','B_max'];Plotly.newPlot('capacityChart',strategies.map(k=>({x:state.summary.map(x=>x.site),y:state.summary.map(x=>x[k]),type:'bar',name:k})),{barmode:'group',margin:{t:20},yaxis:{title:'Beds'}},plotCfg);
-const sg=state.sensitivity.reduce((a,x)=>{(a[x.site+' '+x.strategy]??=[]).push(x);return a;},{});Plotly.newPlot('sensitivityChart',Object.entries(sg).map(([n,r])=>({x:r.map(x=>x.beta),y:r.map(x=>x.pct_change),mode:'lines+markers',name:n})),{margin:{t:20},xaxis:{title:'Variance multiplier β'},yaxis:{title:'% change vs β=1'}},plotCfg);
-renderFits();renderPreprocess();}
-function renderUtil(){if(!state.daily.length)return;const k=$('strategySelect').value,g=state.daily.reduce((a,x)=>{(a[x.site]??=[]).push(x);return a;},{}),tr=Object.entries(g).map(([site,r])=>({x:r.map(x=>x.date||x.day),y:r.map(x=>100*x.rho_t/x[k]),mode:'lines',name:site}));tr.push({x:[state.daily[0].day,state.daily.at(-1).day],y:[85,85],mode:'lines',name:'85%',line:{dash:'dash'}});tr.push({x:[state.daily[0].day,state.daily.at(-1).day],y:[100,100],mode:'lines',name:'100%',line:{dash:'dot'}});Plotly.newPlot('utilizationChart',tr,{margin:{t:20},yaxis:{title:'Utilization (%)'}},plotCfg);}
-function renderFits(){table('fitTable',state.fits.map(x=>({site:x.site,distribution:x.distribution,rmse:x.rmse,kappa:x.kappa,smax:x.smax,selected:x.selected})),['site','distribution','rmse','kappa','smax','selected']);const selected=state.fits.filter(x=>x.fit);if(!selected.length){Plotly.purge('fitChart');return;}const traces=[];for(const x of selected){const max=Math.min(60,x.fit.smax),grid=Array.from({length:max+1},(_,i)=>i);traces.push({x:grid,y:grid.map(u=>NICUDistributions.empiricalAt(x.km,u)),mode:'lines',name:x.site+' empirical'});traces.push({x:grid,y:grid.map(u=>NICUDistributions.marginalSurvival(u,x.fit)),mode:'lines',name:x.site+' '+x.distribution,line:{dash:'dash'}});}Plotly.newPlot('fitChart',traces,{margin:{t:20},xaxis:{title:'LOS days'},yaxis:{title:'P(S > u)'}},plotCfg);}
-function renderPreprocess(){table('configTable',state.configs);if(!state.daily.length)return;const sites=[...new Set(state.daily.map(x=>x.site))],tr=[];for(const site of sites){const r=state.daily.filter(x=>x.site===site);tr.push({x:r.map(x=>x.date||x.day),y:r.map(x=>x.lambda_t),mode:'lines',name:site+' λt'});tr.push({x:r.map(x=>x.date||x.day),y:r.map(x=>x.mu_t),mode:'lines',name:site+' μt',yaxis:'y2'});}Plotly.newPlot('preprocessChart',tr,{margin:{t:20},yaxis:{title:'Admissions/day'},yaxis2:{title:'Mean LOS',overlaying:'y',side:'right'}},plotCfg);}
-async function run(){status('Running model…');try{const p=await prepare(),s=settings(),a=NICUModel.analyze(p.rows,s,p.fits);state={...state,...a,sensitivity:NICUModel.sensitivity(p.rows,s,p.fits,values('betas')),fitsMap:p.fits,inputRows:p.rows};cards(state.summary);table('summaryTable', state.summary.map(row => ({
-  ...row,
-  kappa: row.kappa ?? '-'
-})));table('utilizationTable',state.utilization);table('sensitivityTable',state.sensitivity);plots();const cmp=NICUValidation.compare(state.summary,1);table('validationTable',cmp);const sanity=NICUValidation.sanity(NICUModel);$('sanityBox').innerHTML='<strong>'+(sanity.pass?'PASS':'CHECK')+'</strong><br>Expected steady state: 20 beds<br>Computed: '+sanity.computed.toFixed(2)+'<br>Error: '+sanity.absolute_error.toFixed(2);table('utilizationTargets',NICUValidation.TABLE4);table('projectionTargets',NICUValidation.TABLE6);status('Model complete.','success');}catch(e){console.error(e);status('Error: '+e.message,'error');}}
-async function project(){status('Running projections…');try{if(!state.inputRows)throw new Error('Run the main model first.');const f=$('birthFile').files[0];if(!f)throw new Error('Choose a birth projections CSV.');const births=await parseFile(f),p=NICUProjections.run(state.inputRows,births,settings(),state.fitsMap,{runs:Number($('projectionRuns').value),eta:Number($('eta').value),psi:Number($('psi').value)});state.projectionSummary=p.summary;state.projectionRuns=p.results;table('projectionTable',p.summary);const sites=[...new Set(p.summary.map(x=>x.site))],tr=[];for(const site of sites){const r=p.summary.filter(x=>x.site===site);tr.push({x:r.map(x=>x.year),y:r.map(x=>x['B_0.05_median']),mode:'lines+markers',name:site+' B0.05'});tr.push({x:r.map(x=>x.year),y:r.map(x=>x['B_0.01_median']),mode:'lines+markers',name:site+' B0.01',line:{dash:'dash'}});}Plotly.newPlot('projectionChart',tr,{margin:{t:20},xaxis:{title:'Year'},yaxis:{title:'Beds'}},plotCfg);status('Projection complete.','success');document.querySelector('[data-tab="projections"]').click();}catch(e){console.error(e);status('Projection error: '+e.message,'error');}}
-function download(name){const rows=state[name];if(!rows||!rows.length)return status('No '+name+' output available.','error');const blob=new Blob([Papa.unparse(rows)],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name+'.csv';a.click();URL.revokeObjectURL(a.href);}
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button,.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active');window.dispatchEvent(new Event('resize'));});document.querySelectorAll('[data-download]').forEach(b=>b.onclick=()=>download(b.dataset.download));$('runBtn').onclick=run;$('projectionBtn').onclick=project;$('strategySelect').onchange=renderUtil;$('distributionMode').onchange=()=>{$('manualDistribution').style.display=$('distributionMode').value==='manual'?'block':'none';};window.addEventListener('DOMContentLoaded',()=>{$('distributionMode').dispatchEvent(new Event('change'));run();});
+"use strict";
+
+const SCENARIOS = {
+  low: {
+    label: "Lower demand",
+    multiplier: 0.90,
+    description: "Models admissions at 10% below the current-demand pattern."
+  },
+  baseline: {
+    label: "Current demand",
+    multiplier: 1.00,
+    description: "Uses the uploaded or test-data admission pattern."
+  },
+  high: {
+    label: "Higher demand",
+    multiplier: 1.10,
+    description: "Models admissions at 10% above the current-demand pattern."
+  }
+};
+
+const state = {
+  scenarios: {},
+  activeScenario: "baseline",
+  summary: [],
+  daily: [],
+  fits: [],
+  scenarioComparison: [],
+  inputRows: [],
+  raw: null
+};
+
+const $ = id => document.getElementById(id);
+const plotConfig = {
+  responsive: true,
+  displaylogo: false,
+  displayModeBar: false
+};
+
+function setStatus(message, type = "") {
+  const element = $("status");
+  element.textContent = message;
+  element.className = `status ${type}`.trim();
+}
+
+function clampNumber(value, minimum, maximum, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, parsed));
+}
+
+function total(rows, key) {
+  return rows.reduce((sum, row) => sum + (Number(row[key]) || 0), 0);
+}
+
+function groupBy(rows, key) {
+  return rows.reduce((groups, row) => {
+    const groupKey = typeof key === "function" ? key(row) : row[key];
+    if (!groups[groupKey]) groups[groupKey] = [];
+    groups[groupKey].push(row);
+    return groups;
+  }, {});
+}
+
+function parseFile(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      dynamicTyping: true,
+      skipEmptyLines: true,
+      complete: result => {
+        if (result.errors.length) {
+          reject(new Error(result.errors[0].message));
+          return;
+        }
+        resolve(result.data);
+      },
+      error: reject
+    });
+  });
+}
+
+function inputSettings() {
+  const gamma = clampNumber($("gamma").value, 0, 2, 0.85);
+  const maxUtilization = clampNumber($("maxUtilization").value, 0, 2, 1);
+  const days = Math.round(clampNumber($("days").value, 30, 3650, 365));
+
+  if (gamma <= 0) {
+    throw new Error("Target average utilization must be greater than 0.");
+  }
+  if (maxUtilization <= 0) {
+    throw new Error("Target maximum utilization must be greater than 0.");
+  }
+
+  return { gamma, maxUtilization, days };
+}
+
+function updatePercentLabels() {
+  const gamma = clampNumber($("gamma").value, 0, 2, 0.85);
+  const maximum = clampNumber($("maxUtilization").value, 0, 2, 1);
+  $("gammaPercent").textContent = `${Math.round(gamma * 100)}%`;
+  $("maxUtilizationPercent").textContent = `${Math.round(maximum * 100)}%`;
+}
+
+function updateInputMode() {
+  const synthetic = $("inputMode").value === "synthetic";
+  $("dataFile").disabled = synthetic;
+  if (synthetic) $("dataFile").value = "";
+}
+
+async function prepareInput() {
+  const mode = $("inputMode").value;
+  const { days } = inputSettings();
+  const file = $("dataFile").files[0];
+
+  state.raw = null;
+  state.fits = [];
+
+  if (mode === "synthetic") {
+    const rows = NICUModel.synthetic(days);
+    state.fits = Object.entries(NICUModel.PRESETS).map(([site, preset]) => ({
+      site,
+      distribution: preset.distribution,
+      rmse: preset.rmse,
+      kappa: preset.kappa,
+      smax: preset.smax,
+      source: "Manuscript site preset"
+    }));
+    return {
+      rows,
+      fitsMap: {},
+      distributionMode: "presets",
+      defaultDistribution: "Lognormal"
+    };
+  }
+
+  if (!file) {
+    throw new Error("Choose a CSV file before running the model.");
+  }
+
+  const parsed = await parseFile(file);
+
+  if (mode === "raw") {
+    const processed = NICUPreprocessing.processRawAdmissions(parsed, {
+      stlMode: "preset",
+      rollingWindow: 31
+    });
+
+    const fitsMap = {};
+    const fitRows = [];
+
+    for (const [site, records] of Object.entries(processed.fitsInput)) {
+      const result = NICUDistributions.fitAll(records);
+      fitsMap[site] = result.best;
+      fitRows.push({
+        site,
+        distribution: result.best.name,
+        rmse: result.best.rmse,
+        kappa: result.best.kappa,
+        smax: result.best.smax,
+        source: "Automatically selected from uploaded LOS data"
+      });
+    }
+
+    state.raw = processed.raw;
+    state.fits = fitRows;
+
+    return {
+      rows: processed.daily,
+      fitsMap,
+      distributionMode: "auto",
+      defaultDistribution: "Lognormal"
+    };
+  }
+
+  const rows = NICUPreprocessing.validateProcessed(parsed);
+  const sites = [...new Set(rows.map(row => row.site))];
+  const everySiteHasPreset = sites.every(site => NICUModel.PRESETS[site]);
+
+  if (everySiteHasPreset) {
+    state.fits = sites.map(site => ({
+      site,
+      distribution: NICUModel.PRESETS[site].distribution,
+      rmse: NICUModel.PRESETS[site].rmse,
+      kappa: NICUModel.PRESETS[site].kappa,
+      smax: NICUModel.PRESETS[site].smax,
+      source: "Manuscript site preset"
+    }));
+  } else {
+    state.fits = sites.map(site => ({
+      site,
+      distribution: "Lognormal",
+      rmse: null,
+      kappa: null,
+      smax: 60,
+      source: "Default used because processed data contain no individual LOS observations"
+    }));
+  }
+
+  return {
+    rows,
+    fitsMap: {},
+    distributionMode: everySiteHasPreset ? "presets" : "manual",
+    defaultDistribution: "Lognormal"
+  };
+}
+
+function modelSettings(prepared, scenarioKey) {
+  const { gamma } = inputSettings();
+  const scenario = SCENARIOS[scenarioKey];
+
+  return {
+    distributionMode: prepared.distributionMode,
+    distribution: prepared.defaultDistribution,
+    kappa: 1.5,
+    smax: 60,
+    gamma,
+    riskRule: "average daily risk",
+    arrivalMultiplier: scenario.multiplier,
+    meanLosMultiplier: 1,
+    varianceMultiplier: 1,
+    scenarioStart: null,
+    scenarioEnd: null,
+    actualBeds: {}
+  };
+}
+
+function cleanCapacitySummary(summary, scenarioKey) {
+  return summary.map(row => ({
+    scenario: SCENARIOS[scenarioKey].label,
+    site: row.site,
+    los_distribution: row.distribution,
+    average_expected_occupancy: row.mean_rho_t,
+    peak_expected_occupancy: row.peak_rho_t,
+    Baverage: row.B_average,
+    B0_05: row["B_0.05"],
+    B0_01: row["B_0.01"],
+    Bmax: row.B_max,
+    recommended_strategy: "B0.05",
+    recommended_beds: row["B_0.05"]
+  }));
+}
+
+function buildScenarioComparison() {
+  const rows = [];
+  for (const [scenarioKey, result] of Object.entries(state.scenarios)) {
+    rows.push(...cleanCapacitySummary(result.summary, scenarioKey));
+  }
+  state.scenarioComparison = rows;
+}
+
+async function runModel() {
+  const button = $("runBtn");
+  button.disabled = true;
+  setStatus("Processing data and running the model…");
+
+  try {
+    const prepared = await prepareInput();
+    state.inputRows = prepared.rows;
+    state.scenarios = {};
+
+    for (const scenarioKey of Object.keys(SCENARIOS)) {
+      const settings = modelSettings(prepared, scenarioKey);
+      state.scenarios[scenarioKey] = NICUModel.analyze(prepared.rows, settings, prepared.fitsMap);
+    }
+
+    buildScenarioComparison();
+    state.activeScenario = $("scenarioSelect").value;
+    renderActiveScenario();
+
+    setStatus("Analysis complete", "success");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Error: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderActiveScenario() {
+  const scenarioKey = $("scenarioSelect").value;
+  const result = state.scenarios[scenarioKey];
+  if (!result) return;
+
+  state.activeScenario = scenarioKey;
+  state.summary = result.summary;
+  state.daily = result.daily;
+  renderStatistics();
+  renderStrategyCards();
+  renderOccupancyChart();
+  renderUtilizationChart();
+  renderCapacityChart();
+
+  window.setTimeout(() => window.dispatchEvent(new Event("resize")), 50);
+}
+
+function renderStatistics() {
+  const summary = state.summary;
+  const recommended = Math.round(total(summary, "B_0.05"));
+  const averageOccupancy = total(summary, "mean_rho_t");
+  const peak = summary.length ? Math.max(...summary.map(row => Number(row.peak_rho_t) || 0)) : 0;
+  const days = inputSettings().days;
+
+  $("statRecommended").textContent = `${recommended} beds`;
+  $("statAverageOccupancy").textContent = `${averageOccupancy.toFixed(1)} beds`;
+  $("statPeakOccupancy").textContent = `${peak.toFixed(1)} beds`;
+  $("statSites").textContent = String(summary.length);
+  $("statWindow").textContent = `Forecasting window: ${days} days`;
+  $("recommendedValue").textContent = `${recommended} beds`;
+}
+
+function renderStrategyCards() {
+  const summary = state.summary;
+  $("cardAverage").textContent = `${Math.round(total(summary, "B_average"))} beds`;
+  $("card001").textContent = `${Math.round(total(summary, "B_0.01"))} beds`;
+  $("cardMax").textContent = `${Math.round(total(summary, "B_max"))} beds`;
+}
+
+function commonLayout(yTitle) {
+  return {
+    autosize: true,
+    margin: { t: 86, r: 26, b: 58, l: 66 },
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "rgba(0,0,0,0)",
+    font: { family: "Inter, system-ui, sans-serif", color: "#344054", size: 12 },
+    xaxis: {
+      gridcolor: "#eef2f6",
+      zerolinecolor: "#d0d5dd",
+      title: "Day",
+      automargin: true
+    },
+    yaxis: {
+      gridcolor: "#eef2f6",
+      zerolinecolor: "#d0d5dd",
+      title: yTitle,
+      automargin: true
+    },
+    legend: {
+      orientation: "h",
+      y: 1.18,
+      yanchor: "bottom",
+      x: 0.5,
+      xanchor: "center",
+      font: { size: 11 }
+    },
+    hovermode: "x unified"
+  };
+}
+
+function renderOccupancyChart() {
+  const grouped = groupBy(state.daily, "site");
+  const traces = Object.entries(grouped).map(([site, rows]) => ({
+    x: rows.map(row => row.date || row.day),
+    y: rows.map(row => row.rho_t),
+    mode: "lines",
+    name: site,
+    hovertemplate: "%{x}<br>%{y:.1f} expected beds<extra>%{fullData.name}</extra>"
+  }));
+
+  Plotly.react("occupancyChart", traces, commonLayout("Expected occupied beds"), plotConfig);
+}
+
+function renderUtilizationChart() {
+  if (!state.daily.length) return;
+
+  const strategy = $("strategySelect").value;
+  const grouped = groupBy(state.daily, "site");
+  const traces = Object.entries(grouped).map(([site, rows]) => ({
+    x: rows.map(row => row.date || row.day),
+    y: rows.map(row => 100 * row.rho_t / row[strategy]),
+    mode: "lines",
+    name: site,
+    legend: "legend",
+    hovertemplate: "%{x}<br>%{y:.1f}% utilization<extra>%{fullData.name}</extra>"
+  }));
+
+  const firstRow = state.daily[0];
+  const lastRow = state.daily[state.daily.length - 1];
+  const xStart = firstRow.date || firstRow.day;
+  const xEnd = lastRow.date || lastRow.day;
+  const averageTarget = inputSettings().gamma * 100;
+  const maximumTarget = inputSettings().maxUtilization * 100;
+
+  traces.push({
+    x: [xStart, xEnd],
+    y: [averageTarget, averageTarget],
+    mode: "lines",
+    name: "Target average",
+    legend: "legend2",
+    line: { dash: "dash", width: 2 },
+    hoverinfo: "skip"
+  });
+
+  traces.push({
+    x: [xStart, xEnd],
+    y: [maximumTarget, maximumTarget],
+    mode: "lines",
+    name: "Target maximum",
+    legend: "legend2",
+    line: { dash: "dot", width: 2 },
+    hoverinfo: "skip"
+  });
+
+  const layout = commonLayout("Utilization (%)");
+  layout.margin.t = 96;
+  layout.legend = {
+    orientation: "h",
+    y: 1.20,
+    yanchor: "bottom",
+    x: 0.5,
+    xanchor: "center",
+    font: { size: 11 },
+    entrywidth: 0.18,
+    entrywidthmode: "fraction"
+  };
+  layout.legend2 = {
+    orientation: "h",
+    y: 1.08,
+    yanchor: "bottom",
+    x: 0.5,
+    xanchor: "center",
+    font: { size: 11 }
+  };
+  layout.yaxis.rangemode = "tozero";
+  Plotly.react("utilizationChart", traces, layout, plotConfig);
+}
+
+function renderCapacityChart() {
+  const strategies = [
+    { key: "B_average", label: "Baverage" },
+    { key: "B_0.05", label: "B0.05" },
+    { key: "B_0.01", label: "B0.01" },
+    { key: "B_max", label: "Bmax" }
+  ];
+
+  const traces = strategies.map(strategy => ({
+    x: state.summary.map(row => row.site),
+    y: state.summary.map(row => row[strategy.key]),
+    type: "bar",
+    name: strategy.label,
+    hovertemplate: "%{x}<br>%{y} beds<extra>%{fullData.name}</extra>"
+  }));
+
+  const layout = commonLayout("Beds");
+  layout.margin = { t: 70, r: 70, b: 68, l: 70 };
+  layout.legend = {
+    orientation: "h",
+    y: 1.16,
+    yanchor: "bottom",
+    x: 0.5,
+    xanchor: "center",
+    font: { size: 11 }
+  };
+  layout.barmode = "group";
+  layout.xaxis.title = "Site";
+  layout.hovermode = "closest";
+  Plotly.react("capacityChart", traces, layout, plotConfig);
+}
+
+function activeSummaryDownload() {
+  return cleanCapacitySummary(state.summary, state.activeScenario);
+}
+
+function activeDailyDownload() {
+  const scenarioLabel = SCENARIOS[state.activeScenario].label;
+  return state.daily.map(row => ({
+    scenario: scenarioLabel,
+    site: row.site,
+    day: row.day,
+    date: row.date,
+    expected_occupancy: row.rho_t,
+    Baverage: row.B_average,
+    B0_05: row["B_0.05"],
+    B0_01: row["B_0.01"],
+    Bmax: row.B_max
+  }));
+}
+
+function fittingDownload() {
+  return state.fits.map(row => ({
+    site: row.site,
+    selected_los_distribution: row.distribution,
+    rmse: row.rmse,
+    kappa: row.kappa == null ? "-" : row.kappa,
+    smax: row.smax,
+    source: row.source
+  }));
+}
+
+function downloadRows(type) {
+  let rows;
+  let filename;
+
+  if (type === "summary") {
+    rows = activeSummaryDownload();
+    filename = `capacity-summary-${state.activeScenario}.csv`;
+  } else if (type === "daily") {
+    rows = activeDailyDownload();
+    filename = `daily-occupancy-${state.activeScenario}.csv`;
+  } else if (type === "fits") {
+    rows = fittingDownload();
+    filename = "automatic-los-fitting-summary.csv";
+  } else if (type === "scenarioComparison") {
+    rows = state.scenarioComparison;
+    filename = "demand-scenario-comparison.csv";
+  } else {
+    setStatus("That download is not available.", "error");
+    return;
+  }
+
+  if (!rows || !rows.length) {
+    setStatus("Run the model before downloading results.", "error");
+    return;
+  }
+
+  const blob = new Blob([Papa.unparse(rows)], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);
+  setStatus(`Downloaded ${filename}.`, "success");
+}
+
+function downloadGraph(graphId) {
+  if (!state.daily.length) {
+    setStatus("Run the model before downloading a graph.", "error");
+    return;
+  }
+
+  const names = {
+    occupancyChart: "expected-occupancy",
+    utilizationChart: "utilization",
+    capacityChart: "capacity-by-site"
+  };
+
+  Plotly.downloadImage(graphId, {
+    format: "png",
+    filename: `${names[graphId] || "nicu-capacity-graph"}-${state.activeScenario}`,
+    width: 1400,
+    height: 800,
+    scale: 1
+  });
+}
+
+function markSettingsChanged() {
+  updatePercentLabels();
+  if (state.daily.length) setStatus("Settings changed. Run the model to update the results.");
+}
+
+document.querySelectorAll("[data-download]").forEach(button => {
+  button.addEventListener("click", () => downloadRows(button.dataset.download));
+});
+
+document.querySelectorAll("[data-graph]").forEach(button => {
+  button.addEventListener("click", () => downloadGraph(button.dataset.graph));
+});
+
+$("runBtn").addEventListener("click", runModel);
+$("scenarioSelect").addEventListener("change", renderActiveScenario);
+$("strategySelect").addEventListener("change", renderUtilizationChart);
+$("inputMode").addEventListener("change", () => {
+  updateInputMode();
+  setStatus("Data source changed. Run the model to update the results.");
+});
+$("gamma").addEventListener("input", markSettingsChanged);
+$("maxUtilization").addEventListener("input", markSettingsChanged);
+$("days").addEventListener("input", markSettingsChanged);
+
+window.addEventListener("DOMContentLoaded", () => {
+  updateInputMode();
+  updatePercentLabels();
+
+  const missing = [];
+  if (typeof window.NICUMath === "undefined") missing.push("js/math.js");
+  if (typeof window.NICUDistributions === "undefined") missing.push("js/distributions.js");
+  if (typeof window.NICUPreprocessing === "undefined") missing.push("js/preprocessing.js");
+  if (typeof window.NICUModel === "undefined") missing.push("js/model.js");
+
+  if (missing.length) {
+    setStatus(`Required model files are missing: ${missing.join(", ")}. Replace the complete js folder.`, "error");
+    return;
+  }
+
+  runModel();
+});

@@ -192,7 +192,6 @@ summary:focus-visible {
 
 .format-block p,
 .side-help,
-.background-note,
 .privacy-note {
   color: #aebbd0;
   font-size: 11px;
@@ -201,14 +200,6 @@ summary:focus-visible {
 
 .format-block p {
   margin: 5px 0 0;
-}
-
-.background-note {
-  margin: 12px 0 0;
-  padding: 10px;
-  border-radius: 10px;
-  background: rgba(14, 165, 233, 0.1);
-  color: #cbeafe;
 }
 
 .number-with-suffix {
@@ -558,9 +549,10 @@ summary:focus-visible {
 
 .quick-downloads {
   display: flex;
-  min-height: 426px;
+  min-height: 0;
+  height: auto;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   background: linear-gradient(150deg, #ffffff, #f6f8ff);
 }
 

@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Clinical-facing ICU and NICU bed occupancy and capacity planning dashboard">
   <title>NICU Capacity Planner</title>
-  <link rel="stylesheet" href="styles.css?v=5.3">
+  <link rel="stylesheet" href="styles.css?v=5.5.3">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -27,7 +28,6 @@
         <select id="inputMode">
           <option value="synthetic">Use test data</option>
           <option value="raw">Upload patient-stay data</option>
-          <option value="processed">Upload processed daily data</option>
         </select>
 
         <label for="dataFile">Upload CSV</label>
@@ -35,7 +35,6 @@
 
         <div class="sample-links">
           <a href="./data/sample_raw_admissions.csv" download="sample_raw_admissions.csv">Download patient-stay test data</a>
-          <a href="./data/sample_processed_inputs.csv" download="sample_processed_inputs.csv">Download processed test data</a>
         </div>
 
         <details class="format-details">
@@ -45,14 +44,8 @@
             <code>site, admission_date, los_days</code>
             <p>One row per admission. Length of stay is measured in days.</p>
           </div>
-          <div class="format-block">
-            <strong>Processed daily data</strong>
-            <code>site, day, lambda_t, mu_t, sigma2_t</code>
-            <p>Use this only when daily admission and LOS inputs have already been calculated.</p>
-          </div>
         </details>
 
-        <p class="background-note">Length-of-stay fitting and data preprocessing run automatically in the background.</p>
       </section>
 
       <section class="side-panel" aria-labelledby="scenario-heading">
@@ -196,15 +189,12 @@
 
           <article class="download-panel quick-downloads">
             <div>
-              <p class="eyebrow">Results</p>
               <h2>Download graphs and results</h2>
-              <p>Capacity summary is the primary downloadable result. Graphs are available as PNG files.</p>
             </div>
             <div class="download-actions">
-              <button class="download-primary" type="button" data-download="summary">Download capacity summary CSV</button>
+              <button class="download-primary" type="button" data-download="report">Download complete report PDF</button>
+              <button type="button" data-download="summary">Capacity summary CSV</button>
               <button type="button" data-download="daily">Daily occupancy CSV</button>
-              <button type="button" data-download="fits">Automatic LOS fitting summary CSV</button>
-              <button type="button" data-download="scenarioComparison">Demand scenario comparison CSV</button>
               <button type="button" data-graph="occupancyChart">Expected occupancy PNG</button>
               <button type="button" data-graph="utilizationChart">Utilization PNG</button>
               <button type="button" data-graph="capacityChart">Capacity by site PNG</button>
@@ -216,10 +206,10 @@
     </main>
   </div>
 
-  <script src="js/math.js?v=5.3"></script>
-  <script src="js/distributions.js?v=5.3"></script>
-  <script src="js/preprocessing.js?v=5.3"></script>
-  <script src="js/model.js?v=5.3"></script>
-  <script src="js/app.js?v=5.3"></script>
+  <script src="js/math.js?v=5.5.3"></script>
+  <script src="js/distributions.js?v=5.5.3"></script>
+  <script src="js/preprocessing.js?v=5.5.3"></script>
+  <script src="js/model.js?v=5.5.3"></script>
+  <script src="js/app.js?v=5.5.3"></script>
 </body>
 </html>

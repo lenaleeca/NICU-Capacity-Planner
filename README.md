@@ -2,9 +2,9 @@
 
 A GitHub Pages–compatible dashboard for ICU/NICU bed occupancy and capacity planning using an \(M_t/G_t/\infty\) queueing model.
 
-The clinical-facing interface is designed for nurses, physicians, and healthcare planners. It emphasizes a simple workflow:
+The clinical-facing workflow is:
 
-**Upload data → compare demand scenarios → review the recommended capacity → download results**
+**Use test data or upload patient-stay data → compare demand scenarios → review capacity → download results**
 
 ## Run locally
 
@@ -18,39 +18,49 @@ Open:
 http://localhost:8000
 ```
 
-## Data formats
-
-### Patient-stay data
+## Patient-stay CSV format
 
 ```csv
 site,admission_date,los_days
-Site 1,2023-01-01,8.5
-Site 1,2023-01-02,12.0
-Site 2,2023-01-02,6.5
+Site 1,2025-01-01,8.5
+Site 1,2025-01-01,12.0
+Site 1,2025-01-02,6.5
 ```
 
-The former `event` column was removed from the test file because each row already represents an observed admission with a completed LOS value.
+Each row represents one admission. Length of stay is measured in days. Site names are labels only and do not determine the LOS distribution for uploaded data.
 
-### Processed daily data
+A patient-stay test file is available from the interface.
 
-```csv
-site,day,lambda_t,mu_t,sigma2_t
-Site 1,1,1.7,8.1,36.0
-Site 1,2,1.6,8.0,35.5
-Site 2,1,3.2,9.1,42.0
-```
+## Manuscript-aligned raw-data pipeline
+
+For each uploaded site, the browser now:
+
+1. Aggregates admissions into daily counts and LOS into daily averages.
+2. Evaluates the manuscript's 72 STL configurations:
+   - seasonal windows: 7, 15, and 31;
+   - trend windows: 15, 31, and 61;
+   - seasonal and trend polynomial degrees: 1 and 2;
+   - robust and non-robust fitting.
+3. Selects the STL configuration with the lowest residual standard deviation separately for admissions and LOS.
+4. Uses the STL trend components as the time-varying admission rate and mean LOS.
+5. Evaluates 7-, 15-, and 31-day rolling LOS-residual windows and selects the most stable local-volatility series.
+6. Fits Exponential, Weibull, Lognormal, Gamma, and Fisk/Burr Type XII models by maximum likelihood.
+7. Compares fitted survival curves with the empirical Kaplan–Meier curve and selects the lowest-RMSE model.
+8. Sets the truncation horizon to the smaller of the maximum observed LOS and the fitted 99th percentile.
+9. Calculates expected occupancy and Baverage, B0.05, B0.01, and Bmax.
+
+The manuscript does not specify the numerical statistic used to compare rolling-window stability. This implementation uses the coefficient of variation of each rolling standard-deviation series, with the longer window used to break exact ties.
 
 ## Current interface
 
-- Automatic preprocessing of raw patient-stay data
-- Automatic LOS distribution fitting for uploaded raw data
-- Lower, current, and higher demand scenarios
+- Two data sources only: built-in test data or uploaded patient-stay data
+- Automatic manuscript-method preprocessing for uploaded data
+- Automatic LOS distribution fitting independent of site labels
+- Lower, current, and higher admission-demand scenarios
 - Expected occupancy, utilization, and capacity-by-site graphs
 - Baverage, B0.05, B0.01, and Bmax capacity estimates
-- B0.05 highlighted as the recommended default planning strategy
-- Capacity summary, daily occupancy, LOS fitting, scenario comparison, and graph downloads
-- Target average utilization defaulted to 0.85
-- Browser-local data processing for the GitHub Pages deployment
+- Complete PDF report, selected-scenario capacity summary, daily occupancy, and graph downloads
+- Browser-local processing for the GitHub Pages deployment
 
 ## GitHub Pages
 
@@ -60,11 +70,11 @@ Publish from:
 main → /(root)
 ```
 
-After the site is configured, pushing changes to `main` automatically updates the same deployed website.
+Pushing changes to `main` updates the deployed website after GitHub Pages finishes rebuilding.
 
 ## Data privacy
 
-Uploaded files are processed locally in the visitor's browser and are not stored by the website. Do not upload identifiable or confidential patient data to a public or shared device.
+Uploaded files are processed locally in the visitor's browser and are not stored by the website. Do not upload identifiable or confidential patient data on a public or shared device.
 
 ## Authors
 
@@ -85,6 +95,10 @@ Uploaded files are processed locally in the visitor's browser and are not stored
 Apache License 2.0. See `LICENSE`.
 
 
-## Clinical Interface Layout
+## Download behaviour in Version 5.5
 
-The current interface uses one main Overview page. Automatic preprocessing and LOS fitting run in the browser, the three primary graphs remain visible, and all CSV and PNG downloads are available directly on the main page.
+- The complete PDF report contains the capacity-summary table for the currently selected demand scenario and all three graphs.
+- The capacity summary CSV contains only the currently selected demand scenario and labels B0.05 as the recommended strategy.
+- The daily occupancy CSV uses the numeric day field and does not include a date column.
+- The separate demand-scenario CSV and automatic LOS-fitting CSV have been removed from the clinical-facing download panel.
+- Exported PNG graphs and graphs embedded in the PDF use solid white backgrounds.

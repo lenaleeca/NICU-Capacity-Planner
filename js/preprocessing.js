@@ -1,14 +1,351 @@
 (function(root,factory){const api=factory(typeof require==='function'?require('./math.js'):root.NICUMath);if(typeof module==='object'&&module.exports)module.exports=api;root.NICUPreprocessing=api;})(typeof self!=='undefined'?self:this,function(M){
 'use strict';
-function localPoly(series,window,degree=1,robust=false){const n=series.length,w=Math.max(3,Math.floor(window)|1),half=Math.floor(w/2),out=new Array(n),rob=new Array(n).fill(1);for(let pass=0;pass<(robust?3:1);pass++){for(let i=0;i<n;i++){const lo=Math.max(0,i-half),hi=Math.min(n-1,i+half),A=Array.from({length:degree+1},()=>new Array(degree+1).fill(0)),b=new Array(degree+1).fill(0),maxD=Math.max(1,Math.max(i-lo,hi-i));for(let j=lo;j<=hi;j++){if(!Number.isFinite(series[j]))continue;const x=j-i,u=Math.abs(x)/maxD,wt=(u<1?Math.pow(1-u**3,3):0)*rob[j];let xp=[1];for(let p=1;p<=2*degree;p++)xp[p]=xp[p-1]*x;for(let r=0;r<=degree;r++){b[r]+=wt*series[j]*xp[r];for(let c=0;c<=degree;c++)A[r][c]+=wt*xp[r+c];}}out[i]=M.solveLinear(A,b)[0];}if(robust&&pass<2){const res=series.map((v,i)=>Math.abs(v-out[i])).filter(Number.isFinite),med=M.median(res)||1;for(let i=0;i<n;i++){const u=Math.abs(series[i]-out[i])/(6*med);rob[i]=u>=1?0:Math.pow(1-u*u,2);}}}return out;}
-function seasonalComponent(series,trend,period=7,window=7,degree=1,robust=false){const detr=series.map((v,i)=>v-trend[i]),season=new Array(series.length).fill(0);for(let phase=0;phase<period;phase++){const idx=[],sub=[];for(let i=phase;i<series.length;i+=period){idx.push(i);sub.push(detr[i]);}const sw=Math.max(3,Math.round(window/period)*2+1),sm=localPoly(sub,sw,degree,robust);idx.forEach((id,j)=>season[id]=sm[j]);}const center=M.mean(season);return season.map(v=>v-center);}
-function stlApprox(series,cfg){let trend=localPoly(series,cfg.trendWindow,cfg.trendDegree,cfg.robust),season=seasonalComponent(series,trend,7,cfg.seasonalWindow,cfg.seasonalDegree,cfg.robust),adjusted=series.map((v,i)=>v-season[i]);trend=localPoly(adjusted,cfg.trendWindow,cfg.trendDegree,cfg.robust);season=seasonalComponent(series,trend,7,cfg.seasonalWindow,cfg.seasonalDegree,cfg.robust);const residual=series.map((v,i)=>v-trend[i]-season[i]);return{trend,seasonal:season,residual,score:M.std(residual)};}
-function chooseStl(series,mode='preset'){const preset={seasonalWindow:7,trendWindow:15,seasonalDegree:1,trendDegree:1,robust:false};if(mode!=='grid')return{config:preset,...stlApprox(series,preset)};let best=null;for(const sw of[7,15,31])for(const tw of[15,31,61])for(const sd of[1,2])for(const td of[1,2])for(const robust of[false,true]){const config={seasonalWindow:sw,trendWindow:tw,seasonalDegree:sd,trendDegree:td,robust},r=stlApprox(series,config);if(!best||r.score<best.score)best={config,...r};}return best;}
-function rollingVariance(residual,window=31){const n=residual.length,h=Math.floor(window/2),out=[];for(let i=0;i<n;i++){const a=residual.slice(Math.max(0,i-h),Math.min(n,i+h+1)).filter(Number.isFinite);out.push(Math.max(1e-6,M.variance(a,true)));}return out;}
-function fillMissing(a){const out=a.slice();let last=null;for(let i=0;i<out.length;i++){if(Number.isFinite(out[i]))last=out[i];else if(last!=null)out[i]=last;}last=null;for(let i=out.length-1;i>=0;i--){if(Number.isFinite(out[i]))last=out[i];else if(last!=null)out[i]=last;}const fallback=M.mean(out.filter(Number.isFinite))||1;return out.map(v=>Number.isFinite(v)?v:fallback);}
-function normalizeRaw(rows){const out=[];for(const r of rows){const site=String(r.site??r.institution??'Site 1').trim(),ad=M.dateKey(r.admission_date??r.admit_date??r.date),los=Number(r.los_days??r.los??r.length_of_stay),dis=M.dateKey(r.discharge_date),event=r.event==null?1:Number(r.event);if(site&&ad&&los>0)out.push({site,admission_date:ad,discharge_date:dis,los_days:los,event});}if(!out.length)throw new Error('Raw CSV needs site, admission_date, and los_days columns.');return out.sort((a,b)=>a.site.localeCompare(b.site)||a.admission_date.localeCompare(b.admission_date));}
-function reconstructObserved(raw,start,end){const map=new Map();for(const r of raw){const discharge=r.discharge_date||M.addDays(r.admission_date,Math.max(1,Math.ceil(r.los_days)));for(let d=r.admission_date;d<discharge&&d<=end;d=M.addDays(d,1)){if(d<start)continue;map.set(d,(map.get(d)||0)+1);}}return map;}
-function processRawAdmissions(input,options={}){const raw=normalizeRaw(input),groups=new Map();raw.forEach(r=>{if(!groups.has(r.site))groups.set(r.site,[]);groups.get(r.site).push(r);});const daily=[],fitsInput={},configs=[];for(const[site,records]of groups){const start=records[0].admission_date,end=records.reduce((m,r)=>r.admission_date>m?r.admission_date:m,start),n=M.daysBetween(start,end)+1,byDate=new Map();records.forEach(r=>{if(!byDate.has(r.admission_date))byDate.set(r.admission_date,[]);byDate.get(r.admission_date).push(r.los_days);});const counts=[],means=[],dates=[];for(let i=0;i<n;i++){const date=M.addDays(start,i),vals=byDate.get(date)||[];dates.push(date);counts.push(vals.length);means.push(vals.length?M.mean(vals):NaN);}const filled=fillMissing(means),adm=chooseStl(counts,options.stlMode||'preset'),los=chooseStl(filled,options.stlMode||'preset'),sigma2=rollingVariance(los.residual,Number(options.rollingWindow||31)),obs=reconstructObserved(records,start,end);for(let i=0;i<n;i++)daily.push({site,day:i+1,date:dates[i],year:Number(dates[i].slice(0,4)),day_of_year:M.dayOfYear(dates[i]),lambda_t:Math.max(0,adm.trend[i]+adm.seasonal[i]),mu_t:Math.max(.01,los.trend[i]+los.seasonal[i]),sigma2_t:sigma2[i],observed_occupancy:obs.get(dates[i])||0,admission_count:counts[i]});fitsInput[site]=records;configs.push({site,admission_score:adm.score,los_score:los.score,seasonal_window:adm.config.seasonalWindow,trend_window:adm.config.trendWindow,seasonal_degree:adm.config.seasonalDegree,trend_degree:adm.config.trendDegree,robust:adm.config.robust,rolling_window:Number(options.rollingWindow||31)});}return{daily,raw,fitsInput,configs};}
-function validateProcessed(rows){const out=[];for(const r of rows){const site=String(r.site||'Site 1'),day=Number(r.day),lambda=Number(r.lambda_t),mu=Number(r.mu_t),v=Number(r.sigma2_t),date=M.dateKey(r.date),year=Number(r.year||(date?date.slice(0,4):NaN)),doy=Number(r.day_of_year||(date?M.dayOfYear(date):day)),obs=Number(r.observed_occupancy);if(Number.isFinite(day)&&lambda>=0&&mu>0&&v>=0)out.push({site,day,lambda_t:lambda,mu_t:mu,sigma2_t:v,date:date||null,year:Number.isFinite(year)?year:null,day_of_year:Number.isFinite(doy)?doy:day,observed_occupancy:Number.isFinite(obs)?obs:null,admission_count:Number(r.admission_count)||lambda});}if(!out.length)throw new Error('Processed CSV needs site, day, lambda_t, mu_t, sigma2_t.');return out.sort((a,b)=>a.site.localeCompare(b.site)||a.day-b.day);}
-return{localPoly,stlApprox,chooseStl,rollingVariance,normalizeRaw,processRawAdmissions,validateProcessed};
+
+const STL_PERIOD=7;
+const STL_GRID={
+  seasonalWindows:[7,15,31],
+  trendWindows:[15,31,61],
+  seasonalDegrees:[1,2],
+  trendDegrees:[1,2],
+  robustFlags:[false,true]
+};
+const VARIANCE_WINDOWS=[7,15,31];
+
+function oddSpan(value,min=3){let n=Math.max(min,Math.round(Number(value)||min));if(n%2===0)n+=1;return n;}
+
+function spanBounds(n,index,span){
+  const width=Math.min(n,oddSpan(span));
+  let lo=index-Math.floor(width/2);
+  let hi=lo+width-1;
+  if(lo<0){hi-=lo;lo=0;}
+  if(hi>=n){lo-=hi-(n-1);hi=n-1;}
+  return{lo:Math.max(0,lo),hi};
+}
+
+function localPoly(series,window,degree=1,externalWeights=null){
+  const n=series.length;
+  if(!n)return[];
+  const out=new Array(n);
+  const deg=Math.max(0,Math.min(2,Math.floor(degree)));
+  for(let i=0;i<n;i++){
+    const{lo,hi}=spanBounds(n,i,window);
+    const maxD=Math.max(1,Math.max(i-lo,hi-i));
+    const A=Array.from({length:deg+1},()=>new Array(deg+1).fill(0));
+    const b=new Array(deg+1).fill(0);
+    let weightSum=0,weightedValue=0;
+    for(let j=lo;j<=hi;j++){
+      const y=Number(series[j]);
+      if(!Number.isFinite(y))continue;
+      const x=j-i;
+      const u=Math.abs(x)/maxD;
+      const tricube=u<1?Math.pow(1-u*u*u,3):(j===i?1:0);
+      const robust=externalWeights?Math.max(0,Number(externalWeights[j])||0):1;
+      const wt=tricube*robust;
+      if(!(wt>0))continue;
+      weightSum+=wt;
+      weightedValue+=wt*y;
+      const powers=[1];
+      for(let p=1;p<=2*deg;p++)powers[p]=powers[p-1]*x;
+      for(let r=0;r<=deg;r++){
+        b[r]+=wt*y*powers[r];
+        for(let c=0;c<=deg;c++)A[r][c]+=wt*powers[r+c];
+      }
+    }
+    if(!(weightSum>0)){out[i]=Number(series[i])||0;continue;}
+    const beta=M.solveLinear(A,b);
+    const estimate=beta[0];
+    out[i]=Number.isFinite(estimate)?estimate:weightedValue/weightSum;
+  }
+  return out;
+}
+
+function movingAverage(series,window){
+  const n=series.length;
+  if(!n)return[];
+  const width=Math.max(1,Math.floor(window));
+  const half=Math.floor(width/2);
+  const out=new Array(n);
+  for(let i=0;i<n;i++){
+    let sum=0,count=0;
+    for(let j=i-half;j<=i+half;j++){
+      const idx=Math.min(n-1,Math.max(0,j));
+      const value=Number(series[idx]);
+      if(Number.isFinite(value)){sum+=value;count++;}
+    }
+    out[i]=count?sum/count:0;
+  }
+  return out;
+}
+
+function cycleSubseriesSmooth(detrended,period,window,degree,weights){
+  const seasonal=new Array(detrended.length).fill(0);
+  for(let phase=0;phase<period;phase++){
+    const indices=[],sub=[],subWeights=[];
+    for(let i=phase;i<detrended.length;i+=period){
+      indices.push(i);
+      sub.push(detrended[i]);
+      subWeights.push(weights?weights[i]:1);
+    }
+    const smoothed=localPoly(sub,window,degree,subWeights);
+    indices.forEach((index,j)=>{seasonal[index]=smoothed[j];});
+  }
+  return seasonal;
+}
+
+function lowPassFilter(seasonal,period){
+  const pass1=movingAverage(seasonal,period);
+  const pass2=movingAverage(pass1,period);
+  const pass3=movingAverage(pass2,3);
+  return localPoly(pass3,oddSpan(period),1);
+}
+
+function robustnessWeights(residual){
+  const absolute=residual.map(value=>Math.abs(Number(value))).filter(Number.isFinite);
+  const median=M.median(absolute);
+  if(!(median>1e-12))return new Array(residual.length).fill(1);
+  const scale=6*median;
+  return residual.map(value=>{
+    const u=Math.abs(Number(value))/scale;
+    return u>=1?0:Math.pow(1-u*u,2);
+  });
+}
+
+// Browser implementation of the STL workflow described in the manuscript:
+// weekly seasonal period, LOESS seasonal/trend smoothers, and optional robust
+// outer iterations. The grid-search settings are evaluated independently per site.
+function stlApprox(series,cfg){
+  const y=series.map(value=>Number.isFinite(Number(value))?Number(value):0);
+  const n=y.length;
+  let trend=localPoly(y,cfg.trendWindow,cfg.trendDegree);
+  let seasonal=new Array(n).fill(0);
+  let weights=new Array(n).fill(1);
+  const outerIterations=cfg.robust?3:1;
+  const innerIterations=2;
+
+  for(let outer=0;outer<outerIterations;outer++){
+    for(let inner=0;inner<innerIterations;inner++){
+      const detrended=y.map((value,i)=>value-trend[i]);
+      const rawSeasonal=cycleSubseriesSmooth(
+        detrended,
+        STL_PERIOD,
+        cfg.seasonalWindow,
+        cfg.seasonalDegree,
+        weights
+      );
+      const lowPass=lowPassFilter(rawSeasonal,STL_PERIOD);
+      seasonal=rawSeasonal.map((value,i)=>value-lowPass[i]);
+      const deseasonalized=y.map((value,i)=>value-seasonal[i]);
+      trend=localPoly(deseasonalized,cfg.trendWindow,cfg.trendDegree,weights);
+    }
+    const residual=y.map((value,i)=>value-trend[i]-seasonal[i]);
+    if(cfg.robust&&outer<outerIterations-1)weights=robustnessWeights(residual);
+  }
+
+  const residual=y.map((value,i)=>value-trend[i]-seasonal[i]);
+  return{trend,seasonal,residual,score:M.std(residual,true)};
+}
+
+function chooseStl(series){
+  let best=null,candidatesTested=0;
+  for(const seasonalWindow of STL_GRID.seasonalWindows){
+    for(const trendWindow of STL_GRID.trendWindows){
+      for(const seasonalDegree of STL_GRID.seasonalDegrees){
+        for(const trendDegree of STL_GRID.trendDegrees){
+          for(const robust of STL_GRID.robustFlags){
+            const config={seasonalWindow,trendWindow,seasonalDegree,trendDegree,robust};
+            const result=stlApprox(series,config);
+            candidatesTested++;
+            if(!best||result.score<best.score-1e-12)best={config,...result};
+          }
+        }
+      }
+    }
+  }
+  return{...best,candidatesTested};
+}
+
+function rollingStandardDeviation(residual,window){
+  const n=residual.length,half=Math.floor(window/2),out=new Array(n);
+  for(let i=0;i<n;i++){
+    const values=[];
+    for(let j=Math.max(0,i-half);j<=Math.min(n-1,i+half);j++){
+      const value=Number(residual[j]);
+      if(Number.isFinite(value))values.push(value);
+    }
+    out[i]=Math.sqrt(Math.max(0,M.variance(values,true)));
+  }
+  return out;
+}
+
+function volatilityStability(sdSeries){
+  const values=sdSeries.filter(Number.isFinite);
+  if(!values.length)return Infinity;
+  const mean=M.mean(values);
+  const spread=M.std(values,true);
+  return mean>1e-12?spread/mean:spread;
+}
+
+function chooseRollingVariance(residual){
+  let best=null;
+  const candidates=[];
+  for(const window of VARIANCE_WINDOWS){
+    const standardDeviation=rollingStandardDeviation(residual,window);
+    const score=volatilityStability(standardDeviation);
+    const candidate={window,standardDeviation,score};
+    candidates.push({window,score});
+    if(
+      !best||
+      score<best.score-1e-12||
+      (Math.abs(score-best.score)<=1e-12&&window>best.window)
+    )best=candidate;
+  }
+  return{
+    window:best.window,
+    score:best.score,
+    variance:best.standardDeviation.map(value=>Math.max(1e-6,value*value)),
+    candidates
+  };
+}
+
+function fillMissing(series){
+  const out=series.slice();
+  const known=[];
+  out.forEach((value,index)=>{if(Number.isFinite(value))known.push(index);});
+  if(!known.length)return new Array(out.length).fill(1);
+  for(let i=0;i<known[0];i++)out[i]=out[known[0]];
+  for(let i=known[known.length-1]+1;i<out.length;i++)out[i]=out[known[known.length-1]];
+  for(let k=0;k<known.length-1;k++){
+    const left=known[k],right=known[k+1],a=out[left],b=out[right];
+    for(let i=left+1;i<right;i++){
+      const weight=(i-left)/(right-left);
+      out[i]=a+weight*(b-a);
+    }
+  }
+  return out.map(value=>Number.isFinite(value)?value:1);
+}
+
+function normalizeRaw(rows){
+  const out=[];
+  for(const row of rows){
+    const site=String(row.site??row.institution??'Site 1').trim();
+    const admissionDate=M.dateKey(row.admission_date??row.admit_date??row.date);
+    const los=Number(row.los_days??row.los??row.length_of_stay);
+    const dischargeDate=M.dateKey(row.discharge_date);
+    const event=row.event==null?1:Number(row.event);
+    if(site&&admissionDate&&los>0)out.push({
+      site,
+      admission_date:admissionDate,
+      discharge_date:dischargeDate,
+      los_days:los,
+      event:Number.isFinite(event)?event:1
+    });
+  }
+  if(!out.length)throw new Error('Patient-stay CSV needs site, admission_date, and los_days columns.');
+  return out.sort((a,b)=>a.site.localeCompare(b.site)||a.admission_date.localeCompare(b.admission_date));
+}
+
+function reconstructObserved(records,start,end){
+  const map=new Map();
+  for(const record of records){
+    const discharge=record.discharge_date||M.addDays(record.admission_date,Math.max(1,Math.ceil(record.los_days)));
+    for(let day=record.admission_date;day<discharge&&day<=end;day=M.addDays(day,1)){
+      if(day<start)continue;
+      map.set(day,(map.get(day)||0)+1);
+    }
+  }
+  return map;
+}
+
+function processRawAdmissions(input){
+  const raw=normalizeRaw(input);
+  const groups=new Map();
+  raw.forEach(record=>{
+    if(!groups.has(record.site))groups.set(record.site,[]);
+    groups.get(record.site).push(record);
+  });
+
+  const daily=[],fitsInput={},configs=[];
+  for(const[site,records]of groups){
+    const start=records.reduce((minimum,record)=>record.admission_date<minimum?record.admission_date:minimum,records[0].admission_date);
+    const end=records.reduce((maximum,record)=>record.admission_date>maximum?record.admission_date:maximum,start);
+    const n=M.daysBetween(start,end)+1;
+    const byDate=new Map();
+    records.forEach(record=>{
+      if(!byDate.has(record.admission_date))byDate.set(record.admission_date,[]);
+      byDate.get(record.admission_date).push(record.los_days);
+    });
+
+    const dates=[],counts=[],dailyMeanLos=[];
+    for(let i=0;i<n;i++){
+      const currentDate=M.addDays(start,i);
+      const values=byDate.get(currentDate)||[];
+      dates.push(currentDate);
+      counts.push(values.length);
+      dailyMeanLos.push(values.length?M.mean(values):NaN);
+    }
+
+    const filledMeanLos=fillMissing(dailyMeanLos);
+    const admissionStl=chooseStl(counts);
+    const losStl=chooseStl(filledMeanLos);
+    const varianceChoice=chooseRollingVariance(losStl.residual);
+    const observed=reconstructObserved(records,start,end);
+    const empiricalMeanLos=M.mean(records.map(record=>record.los_days));
+    const empiricalAdmissionRate=records.length/n;
+
+    for(let i=0;i<n;i++)daily.push({
+      site,
+      day:i+1,
+      date:dates[i],
+      year:Number(dates[i].slice(0,4)),
+      day_of_year:M.dayOfYear(dates[i]),
+      // The manuscript retains the STL trend component as lambda_t and mu_t.
+      lambda_t:Math.max(0,admissionStl.trend[i]),
+      mu_t:Math.max(0.01,losStl.trend[i]),
+      sigma2_t:varianceChoice.variance[i],
+      observed_occupancy:observed.get(dates[i])||0,
+      admission_count:counts[i],
+      raw_mean_los:Number.isFinite(dailyMeanLos[i])?dailyMeanLos[i]:null,
+      historical_mean_los:empiricalMeanLos,
+      historical_admission_rate:empiricalAdmissionRate
+    });
+
+    fitsInput[site]=records;
+    configs.push({
+      site,
+      admission_candidates_tested:admissionStl.candidatesTested,
+      admission_residual_sd:admissionStl.score,
+      admission_seasonal_window:admissionStl.config.seasonalWindow,
+      admission_trend_window:admissionStl.config.trendWindow,
+      admission_seasonal_degree:admissionStl.config.seasonalDegree,
+      admission_trend_degree:admissionStl.config.trendDegree,
+      admission_robust:admissionStl.config.robust,
+      los_candidates_tested:losStl.candidatesTested,
+      los_residual_sd:losStl.score,
+      los_seasonal_window:losStl.config.seasonalWindow,
+      los_trend_window:losStl.config.trendWindow,
+      los_seasonal_degree:losStl.config.seasonalDegree,
+      los_trend_degree:losStl.config.trendDegree,
+      los_robust:losStl.config.robust,
+      los_variance_window:varianceChoice.window,
+      los_variance_stability_score:varianceChoice.score,
+      empirical_mean_los:empiricalMeanLos,
+      empirical_admission_rate:empiricalAdmissionRate
+    });
+  }
+
+  return{daily,raw,fitsInput,configs};
+}
+
+return{
+  STL_PERIOD,
+  STL_GRID,
+  VARIANCE_WINDOWS,
+  localPoly,
+  stlApprox,
+  chooseStl,
+  rollingStandardDeviation,
+  chooseRollingVariance,
+  normalizeRaw,
+  processRawAdmissions
+};
 });

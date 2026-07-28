@@ -24,9 +24,9 @@ const state = {
   summary: [],
   daily: [],
   fits: [],
-  scenarioComparison: [],
   inputRows: [],
-  raw: null
+  raw: null,
+  preprocessing: []
 };
 
 const $ = id => document.getElementById(id);
@@ -114,6 +114,7 @@ async function prepareInput() {
 
   state.raw = null;
   state.fits = [];
+  state.preprocessing = [];
 
   if (mode === "synthetic") {
     const rows = NICUModel.synthetic(days);
@@ -133,73 +134,46 @@ async function prepareInput() {
     };
   }
 
+  if (mode !== "raw") {
+    throw new Error("Choose either test data or patient-stay data.");
+  }
   if (!file) {
     throw new Error("Choose a CSV file before running the model.");
   }
 
   const parsed = await parseFile(file);
+  const processed = NICUPreprocessing.processRawAdmissions(parsed);
+  const configBySite = Object.fromEntries(processed.configs.map(row => [row.site, row]));
+  const fitsMap = {};
+  const fitRows = [];
 
-  if (mode === "raw") {
-    const processed = NICUPreprocessing.processRawAdmissions(parsed, {
-      stlMode: "preset",
-      rollingWindow: 31
-    });
-
-    const fitsMap = {};
-    const fitRows = [];
-
-    for (const [site, records] of Object.entries(processed.fitsInput)) {
-      const result = NICUDistributions.fitAll(records);
-      fitsMap[site] = result.best;
-      fitRows.push({
-        site,
-        distribution: result.best.name,
-        rmse: result.best.rmse,
-        kappa: result.best.kappa,
-        smax: result.best.smax,
-        source: "Automatically selected from uploaded LOS data"
-      });
-    }
-
-    state.raw = processed.raw;
-    state.fits = fitRows;
-
-    return {
-      rows: processed.daily,
-      fitsMap,
-      distributionMode: "auto",
-      defaultDistribution: "Lognormal"
+  for (const [site, records] of Object.entries(processed.fitsInput)) {
+    const result = NICUDistributions.fitAll(records);
+    const config = configBySite[site] || {};
+    fitsMap[site] = {
+      ...result.best,
+      empiricalMeanLos: result.empiricalMean
     };
+    fitRows.push({
+      site,
+      distribution: result.best.name,
+      rmse: result.best.rmse,
+      kappa: result.best.kappa,
+      smax: result.best.smax,
+      empiricalMeanLos: result.empiricalMean,
+      source: "Automatically selected from uploaded patient-stay data",
+      ...config
+    });
   }
 
-  const rows = NICUPreprocessing.validateProcessed(parsed);
-  const sites = [...new Set(rows.map(row => row.site))];
-  const everySiteHasPreset = sites.every(site => NICUModel.PRESETS[site]);
-
-  if (everySiteHasPreset) {
-    state.fits = sites.map(site => ({
-      site,
-      distribution: NICUModel.PRESETS[site].distribution,
-      rmse: NICUModel.PRESETS[site].rmse,
-      kappa: NICUModel.PRESETS[site].kappa,
-      smax: NICUModel.PRESETS[site].smax,
-      source: "Manuscript site preset"
-    }));
-  } else {
-    state.fits = sites.map(site => ({
-      site,
-      distribution: "Lognormal",
-      rmse: null,
-      kappa: null,
-      smax: 60,
-      source: "Default used because processed data contain no individual LOS observations"
-    }));
-  }
+  state.raw = processed.raw;
+  state.fits = fitRows;
+  state.preprocessing = processed.configs;
 
   return {
-    rows,
-    fitsMap: {},
-    distributionMode: everySiteHasPreset ? "presets" : "manual",
+    rows: processed.daily,
+    fitsMap,
+    distributionMode: "auto",
     defaultDistribution: "Lognormal"
   };
 }
@@ -228,30 +202,19 @@ function cleanCapacitySummary(summary, scenarioKey) {
   return summary.map(row => ({
     scenario: SCENARIOS[scenarioKey].label,
     site: row.site,
-    los_distribution: row.distribution,
     average_expected_occupancy: row.mean_rho_t,
     peak_expected_occupancy: row.peak_rho_t,
     Baverage: row.B_average,
-    B0_05: row["B_0.05"],
+    "B0.05 (recommended strategy)": row["B_0.05"],
     B0_01: row["B_0.01"],
-    Bmax: row.B_max,
-    recommended_strategy: "B0.05",
-    recommended_beds: row["B_0.05"]
+    Bmax: row.B_max
   }));
-}
-
-function buildScenarioComparison() {
-  const rows = [];
-  for (const [scenarioKey, result] of Object.entries(state.scenarios)) {
-    rows.push(...cleanCapacitySummary(result.summary, scenarioKey));
-  }
-  state.scenarioComparison = rows;
 }
 
 async function runModel() {
   const button = $("runBtn");
   button.disabled = true;
-  setStatus("Processing data and running the model…");
+  setStatus("Analyzing data and running the model…");
 
   try {
     const prepared = await prepareInput();
@@ -263,7 +226,6 @@ async function runModel() {
       state.scenarios[scenarioKey] = NICUModel.analyze(prepared.rows, settings, prepared.fitsMap);
     }
 
-    buildScenarioComparison();
     state.activeScenario = $("scenarioSelect").value;
     renderActiveScenario();
 
@@ -319,8 +281,8 @@ function commonLayout(yTitle) {
   return {
     autosize: true,
     margin: { t: 86, r: 26, b: 58, l: 66 },
-    paper_bgcolor: "rgba(0,0,0,0)",
-    plot_bgcolor: "rgba(0,0,0,0)",
+    paper_bgcolor: "#ffffff",
+    plot_bgcolor: "#ffffff",
     font: { family: "Inter, system-ui, sans-serif", color: "#344054", size: 12 },
     xaxis: {
       gridcolor: "#eef2f6",
@@ -456,7 +418,8 @@ function renderCapacityChart() {
   Plotly.react("capacityChart", traces, layout, plotConfig);
 }
 
-function activeSummaryDownload() {
+function capacitySummaryDownload() {
+  if (!state.summary.length) return [];
   return cleanCapacitySummary(state.summary, state.activeScenario);
 }
 
@@ -466,7 +429,6 @@ function activeDailyDownload() {
     scenario: scenarioLabel,
     site: row.site,
     day: row.day,
-    date: row.date,
     expected_occupancy: row.rho_t,
     Baverage: row.B_average,
     B0_05: row["B_0.05"],
@@ -475,33 +437,16 @@ function activeDailyDownload() {
   }));
 }
 
-function fittingDownload() {
-  return state.fits.map(row => ({
-    site: row.site,
-    selected_los_distribution: row.distribution,
-    rmse: row.rmse,
-    kappa: row.kappa == null ? "-" : row.kappa,
-    smax: row.smax,
-    source: row.source
-  }));
-}
-
 function downloadRows(type) {
   let rows;
   let filename;
 
   if (type === "summary") {
-    rows = activeSummaryDownload();
+    rows = capacitySummaryDownload();
     filename = `capacity-summary-${state.activeScenario}.csv`;
   } else if (type === "daily") {
     rows = activeDailyDownload();
     filename = `daily-occupancy-${state.activeScenario}.csv`;
-  } else if (type === "fits") {
-    rows = fittingDownload();
-    filename = "automatic-los-fitting-summary.csv";
-  } else if (type === "scenarioComparison") {
-    rows = state.scenarioComparison;
-    filename = "demand-scenario-comparison.csv";
   } else {
     setStatus("That download is not available.", "error");
     return;
@@ -523,7 +468,49 @@ function downloadRows(type) {
   setStatus(`Downloaded ${filename}.`, "success");
 }
 
-function downloadGraph(graphId) {
+function triggerBlobDownload(blob, filename) {
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function loadImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("The graph image could not be prepared."));
+    image.src = dataUrl;
+  });
+}
+
+async function graphDataUrlWithWhiteBackground(graphId, width = 1400, height = 800) {
+  const graph = $(graphId);
+  if (!graph || !graph.data) throw new Error("Run the model before downloading a graph.");
+
+  const transparentUrl = await Plotly.toImage(graph, {
+    format: "png",
+    width,
+    height,
+    scale: 1
+  });
+
+  const image = await loadImage(transparentUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL("image/png");
+}
+
+async function downloadGraph(graphId) {
   if (!state.daily.length) {
     setStatus("Run the model before downloading a graph.", "error");
     return;
@@ -535,13 +522,171 @@ function downloadGraph(graphId) {
     capacityChart: "capacity-by-site"
   };
 
-  Plotly.downloadImage(graphId, {
-    format: "png",
-    filename: `${names[graphId] || "nicu-capacity-graph"}-${state.activeScenario}`,
-    width: 1400,
-    height: 800,
-    scale: 1
+  try {
+    setStatus("Preparing graph…");
+    const dataUrl = await graphDataUrlWithWhiteBackground(graphId);
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const filename = `${names[graphId] || "nicu-capacity-graph"}-${state.activeScenario}.png`;
+    triggerBlobDownload(blob, filename);
+    setStatus(`Downloaded ${filename}.`, "success");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Error: ${error.message}`, "error");
+  }
+}
+
+function reportTableRows() {
+  return state.summary.map(row => [
+    String(row.site),
+    Number(row.mean_rho_t).toFixed(1),
+    Number(row.peak_rho_t).toFixed(1),
+    String(Math.round(Number(row.B_average) || 0)),
+    String(Math.round(Number(row["B_0.05"]) || 0)),
+    String(Math.round(Number(row["B_0.01"]) || 0)),
+    String(Math.round(Number(row.B_max) || 0))
+  ]);
+}
+
+function drawReportTable(doc, rows, startY) {
+  const margin = 12;
+  const widths = [38, 43, 40, 30, 58, 30, 30];
+  const headers = [
+    ["Site"],
+    ["Average occupancy"],
+    ["Peak occupancy"],
+    ["Baverage"],
+    ["B0.05", "(recommended strategy)"],
+    ["B0.01"],
+    ["Bmax"]
+  ];
+  const headerHeight = 13;
+  const rowHeight = 9;
+  let y = startY;
+
+  function drawHeader() {
+    let x = margin;
+    headers.forEach((headerLines, index) => {
+      doc.setFillColor(47, 91, 234);
+      doc.setDrawColor(220, 226, 235);
+      doc.rect(x, y, widths[index], headerHeight, "FD");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(index === 4 ? 7.2 : 8);
+      headerLines.forEach((line, lineIndex) => {
+        const textY = headerLines.length === 1 ? y + 8 : y + 5 + (lineIndex * 4);
+        doc.text(line, x + 2, textY, { maxWidth: widths[index] - 4 });
+      });
+      x += widths[index];
+    });
+    y += headerHeight;
+  }
+
+  drawHeader();
+
+  rows.forEach((row, rowIndex) => {
+    if (y + rowHeight > doc.internal.pageSize.getHeight() - 14) {
+      doc.addPage("a4", "landscape");
+      y = 18;
+      drawHeader();
+    }
+
+    let x = margin;
+    const fill = rowIndex % 2 === 0 ? 248 : 255;
+    row.forEach((value, index) => {
+      doc.setFillColor(fill, fill, fill);
+      doc.setDrawColor(220, 226, 235);
+      doc.rect(x, y, widths[index], rowHeight, "FD");
+      doc.setTextColor(31, 41, 55);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.text(String(value), x + 2, y + 5.8, { maxWidth: widths[index] - 4 });
+      x += widths[index];
+    });
+    y += rowHeight;
   });
+
+  return { y };
+}
+
+function addGraphPage(doc, title, imageDataUrl) {
+  doc.addPage("a4", "landscape");
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const availableWidth = pageWidth - 28;
+  const availableHeight = pageHeight - 34;
+  const imageRatio = 1400 / 800;
+  let imageWidth = availableWidth;
+  let imageHeight = imageWidth / imageRatio;
+
+  if (imageHeight > availableHeight) {
+    imageHeight = availableHeight;
+    imageWidth = imageHeight * imageRatio;
+  }
+
+  const imageX = (pageWidth - imageWidth) / 2;
+  const imageY = 22 + (availableHeight - imageHeight) / 2;
+
+  doc.setTextColor(20, 31, 55);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text(title, 14, 16);
+  doc.addImage(imageDataUrl, "PNG", imageX, imageY, imageWidth, imageHeight, undefined, "FAST");
+}
+
+async function downloadCompleteReport() {
+  if (!state.summary.length || !state.daily.length) {
+    setStatus("Run the model before downloading the report.", "error");
+    return;
+  }
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    setStatus("The PDF library did not load. Refresh the page and try again.", "error");
+    return;
+  }
+
+  try {
+    setStatus("Preparing complete PDF report…");
+    const [occupancyImage, utilizationImage, capacityImage] = await Promise.all([
+      graphDataUrlWithWhiteBackground("occupancyChart"),
+      graphDataUrlWithWhiteBackground("utilizationChart"),
+      graphDataUrlWithWhiteBackground("capacityChart")
+    ]);
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const scenario = SCENARIOS[state.activeScenario];
+    const settings = inputSettings();
+
+    doc.setTextColor(20, 31, 55);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(21);
+    doc.text("ICU/NICU Capacity Planning Report", 12, 16);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(71, 84, 103);
+    doc.text(`Admission demand: ${scenario.label}`, 12, 24);
+    doc.text(`Target average utilization: ${Math.round(settings.gamma * 100)}%`, 12, 30);
+    doc.text(`Target maximum utilization: ${Math.round(settings.maxUtilization * 100)}%`, 105, 30);
+    doc.text(`Forecasting window: ${settings.days} days`, 210, 30);
+
+    doc.setTextColor(20, 31, 55);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("Capacity summary", 12, 41);
+    drawReportTable(doc, reportTableRows(), 46);
+
+    addGraphPage(doc, "Expected occupancy", occupancyImage);
+    addGraphPage(doc, "Utilization", utilizationImage);
+    addGraphPage(doc, "Capacity by site", capacityImage);
+
+    const filename = `nicu-capacity-complete-report-${state.activeScenario}.pdf`;
+    doc.save(filename);
+    setStatus(`Downloaded ${filename}.`, "success");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Error: ${error.message}`, "error");
+  }
 }
 
 function markSettingsChanged() {
@@ -550,7 +695,13 @@ function markSettingsChanged() {
 }
 
 document.querySelectorAll("[data-download]").forEach(button => {
-  button.addEventListener("click", () => downloadRows(button.dataset.download));
+  button.addEventListener("click", () => {
+    if (button.dataset.download === "report") {
+      downloadCompleteReport();
+      return;
+    }
+    downloadRows(button.dataset.download);
+  });
 });
 
 document.querySelectorAll("[data-graph]").forEach(button => {

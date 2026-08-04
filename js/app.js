@@ -36,6 +36,10 @@ const plotConfig = {
   displayModeBar: false
 };
 
+function isPhoneWidth() {
+  return window.matchMedia("(max-width: 680px)").matches;
+}
+
 function setStatus(message, type = "") {
   const element = $("status");
   element.textContent = message;
@@ -103,6 +107,9 @@ function updatePercentLabels() {
 
 function updateInputMode() {
   const synthetic = $("inputMode").value === "synthetic";
+  const uploadControls = $("uploadControls");
+
+  if (uploadControls) uploadControls.hidden = synthetic;
   $("dataFile").disabled = synthetic;
   if (synthetic) $("dataFile").value = "";
 }
@@ -135,7 +142,7 @@ async function prepareInput() {
   }
 
   if (mode !== "raw") {
-    throw new Error("Choose either test data or patient-stay data.");
+    throw new Error("Choose either demo model output or patient-stay data.");
   }
   if (!file) {
     throw new Error("Choose a CSV file before running the model.");
@@ -324,14 +331,17 @@ function renderOccupancyChart() {
 function renderUtilizationChart() {
   if (!state.daily.length) return;
 
+  const phone = isPhoneWidth();
   const strategy = $("strategySelect").value;
   const grouped = groupBy(state.daily, "site");
-  const traces = Object.entries(grouped).map(([site, rows]) => ({
+  const siteColors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#17becf", "#bcbd22", "#7f7f7f"];
+  const traces = Object.entries(grouped).map(([site, rows], index) => ({
     x: rows.map(row => row.date || row.day),
     y: rows.map(row => 100 * row.rho_t / row[strategy]),
     mode: "lines",
     name: site,
     legend: "legend",
+    line: { color: siteColors[index % siteColors.length] },
     hovertemplate: "%{x}<br>%{y:.1f}% utilization<extra>%{fullData.name}</extra>"
   }));
 
@@ -348,7 +358,7 @@ function renderUtilizationChart() {
     mode: "lines",
     name: "Target average",
     legend: "legend2",
-    line: { dash: "dash", width: 2 },
+    line: { dash: "dash", width: 2, color: "#8c564b" },
     hoverinfo: "skip"
   });
 
@@ -358,13 +368,23 @@ function renderUtilizationChart() {
     mode: "lines",
     name: "Target maximum",
     legend: "legend2",
-    line: { dash: "dot", width: 2 },
+    line: { dash: "dot", width: 2, color: "#e377c2" },
     hoverinfo: "skip"
   });
 
   const layout = commonLayout("Utilization (%)");
-  layout.margin.t = 96;
-  layout.legend = {
+  layout.margin.t = phone ? 150 : 96;
+  layout.legend = phone ? {
+    orientation: "h",
+    y: 1.30,
+    yanchor: "bottom",
+    x: 0.5,
+    xanchor: "center",
+    font: { family: "Inter, system-ui, sans-serif", size: 10, color: "#344054" },
+    entrywidthmode: "pixels",
+    entrywidth: 70,
+    traceorder: "normal"
+  } : {
     orientation: "h",
     y: 1.20,
     yanchor: "bottom",
@@ -374,7 +394,17 @@ function renderUtilizationChart() {
     entrywidth: 0.18,
     entrywidthmode: "fraction"
   };
-  layout.legend2 = {
+  layout.legend2 = phone ? {
+    orientation: "h",
+    y: 1.09,
+    yanchor: "bottom",
+    x: 0.5,
+    xanchor: "center",
+    font: { family: "Inter, system-ui, sans-serif", size: 10, color: "#344054" },
+    entrywidthmode: "pixels",
+    entrywidth: 118,
+    traceorder: "normal"
+  } : {
     orientation: "h",
     y: 1.08,
     yanchor: "bottom",
@@ -694,6 +724,83 @@ function markSettingsChanged() {
   if (state.daily.length) setStatus("Settings changed. Run the model to update the results.");
 }
 
+
+function positionInfoPopover(button, popover) {
+  if (!button || !popover || popover.hidden) return;
+
+  const gap = 8;
+  const edge = 12;
+  popover.style.visibility = "hidden";
+  popover.style.left = "0px";
+  popover.style.top = "0px";
+
+  const buttonRect = button.getBoundingClientRect();
+  const popoverRect = popover.getBoundingClientRect();
+  const maxLeft = Math.max(edge, window.innerWidth - popoverRect.width - edge);
+  let left = Math.min(Math.max(buttonRect.left, edge), maxLeft);
+  let top = buttonRect.bottom + gap;
+
+  if (top + popoverRect.height > window.innerHeight - edge) {
+    top = Math.max(edge, buttonRect.top - popoverRect.height - gap);
+  }
+
+  popover.style.left = `${Math.round(left)}px`;
+  popover.style.top = `${Math.round(top)}px`;
+  popover.style.visibility = "visible";
+}
+
+function closeInfoPopovers(exceptId = null) {
+  document.querySelectorAll(".info-popover-toggle").forEach(button => {
+    const targetId = button.dataset.popoverTarget;
+    const popover = $(targetId);
+    const open = targetId === exceptId;
+
+    if (popover) {
+      popover.hidden = !open;
+      if (!open) {
+        popover.style.left = "";
+        popover.style.top = "";
+        popover.style.visibility = "";
+      }
+    }
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+
+    if (open && popover) {
+      window.requestAnimationFrame(() => positionInfoPopover(button, popover));
+    }
+  });
+}
+
+function repositionOpenInfoPopover() {
+  const openButton = document.querySelector('.info-popover-toggle[aria-expanded="true"]');
+  if (!openButton) return;
+  positionInfoPopover(openButton, $(openButton.dataset.popoverTarget));
+}
+
+function initializeInfoPopovers() {
+  document.querySelectorAll(".info-popover-toggle").forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      const targetId = button.dataset.popoverTarget;
+      const popover = $(targetId);
+      const shouldOpen = popover ? popover.hidden : false;
+      closeInfoPopovers(shouldOpen ? targetId : null);
+    });
+  });
+
+  document.addEventListener("click", event => {
+    if (!event.target.closest(".popover-wrap")) {
+      closeInfoPopovers();
+    }
+  });
+
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closeInfoPopovers();
+  });
+
+  window.addEventListener("scroll", repositionOpenInfoPopover, true);
+}
+
 document.querySelectorAll("[data-download]").forEach(button => {
   button.addEventListener("click", () => {
     if (button.dataset.download === "report") {
@@ -719,9 +826,22 @@ $("gamma").addEventListener("input", markSettingsChanged);
 $("maxUtilization").addEventListener("input", markSettingsChanged);
 $("days").addEventListener("input", markSettingsChanged);
 
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  window.clearTimeout(resizeTimer);
+  resizeTimer = window.setTimeout(() => {
+    repositionOpenInfoPopover();
+    if (!state.daily.length) return;
+    renderOccupancyChart();
+    renderUtilizationChart();
+    renderCapacityChart();
+  }, 120);
+});
+
 window.addEventListener("DOMContentLoaded", () => {
   updateInputMode();
   updatePercentLabels();
+  initializeInfoPopovers();
 
   const missing = [];
   if (typeof window.NICUMath === "undefined") missing.push("js/math.js");

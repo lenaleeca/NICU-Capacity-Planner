@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Clinical-facing ICU and NICU bed occupancy and capacity planning dashboard">
   <title>NICU Capacity Planner</title>
-  <link rel="stylesheet" href="styles.css?v=5.5.3">
+  <link rel="stylesheet" href="styles.css?v=5.7.3">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
@@ -26,25 +26,26 @@
 
         <label for="inputMode">Data source</label>
         <select id="inputMode">
-          <option value="synthetic">Use test data</option>
+          <option value="synthetic">View demo model output</option>
           <option value="raw">Upload patient-stay data</option>
         </select>
 
-        <label for="dataFile">Upload CSV</label>
-        <input id="dataFile" type="file" accept=".csv,text/csv">
+        <div id="uploadControls" class="upload-controls" hidden>
+          <label for="dataFile">Upload patient-stay data (CSV)</label>
+          <input id="dataFile" type="file" accept=".csv,text/csv">
 
-        <div class="sample-links">
-          <a href="./data/sample_raw_admissions.csv" download="sample_raw_admissions.csv">Download patient-stay test data</a>
-        </div>
-
-        <details class="format-details">
-          <summary>View required data format</summary>
-          <div class="format-block">
-            <strong>Patient-stay data</strong>
-            <code>site, admission_date, los_days</code>
-            <p>One row per admission. Length of stay is measured in days.</p>
+          <div class="sample-links">
+            <a href="./data/sample_raw_admissions.csv" download="sample_raw_admissions.csv">Download patient-stay test data</a>
           </div>
-        </details>
+
+          <details class="format-details">
+            <summary>View required format</summary>
+            <div class="format-block">
+              <code>site, admission_date, los_days</code>
+              <p>One row per admission. Length of stay is measured in days.</p>
+            </div>
+          </details>
+        </div>
 
       </section>
 
@@ -117,8 +118,8 @@
         <section class="recommendation-panel" aria-labelledby="recommendation-heading">
           <div class="recommendation-copy">
             <div class="recommendation-badge">Recommended</div>
-            <h2 id="recommendation-heading">Use B0.05 for balanced planning</h2>
-            <p>B0.05 provides a 5% overflow-risk target while avoiding the larger underutilization associated with B0.01 and Bmax. Final decisions should still consider local staffing, space, and clinical constraints.</p>
+            <div class="title-with-help b-help-title"><h2 id="recommendation-heading">Use B0.05 for balanced planning</h2><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about B0.05" aria-expanded="false" data-popover-target="b005Popover">i</button><div id="b005Popover" class="info-popover" hidden><strong>B0.05 — Recommended</strong><p>This number of beds is chosen so that, on an average day, there is no more than a 5% chance that demand will rise above the target average utilization. With the default 85% target, it means each site should stay at or below 85% full most of the time, while still leaving some beds available for busier days. It provides a balance between having enough protection and avoiding too many empty beds.</p></div></div></div>
+            <p>Balanced planning means choosing enough beds so each site can usually stay at or below the target average utilization, while still keeping some beds free for busier days.</p>
           </div>
           <div class="recommendation-value">
             <span>Current scenario</span>
@@ -129,16 +130,16 @@
 
         <section class="strategy-grid" aria-label="Capacity strategy comparison">
           <article class="strategy-card">
-            <div class="strategy-heading"><span>Baverage</span><strong id="cardAverage">—</strong></div>
-            <p>Uses fewer beds and supports efficiency, but has no formal overflow-risk guarantee and may underestimate surge needs.</p>
+            <div class="strategy-heading"><div class="strategy-title"><span>Baverage</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about Baverage" aria-expanded="false" data-popover-target="bAveragePopover">i</button><div id="bAveragePopover" class="info-popover" hidden><strong>Baverage</strong><p>This number is based mainly on how many beds are usually needed, with a small extra cushion added. It works well when demand stays close to normal. The benefit is that fewer beds are needed, making them easier to staff and use efficiently. The downside is that there may not be enough beds during unusually busy periods because this strategy does not set a specific overflow-risk limit.</p></div></div></div><strong id="cardAverage">—</strong></div>
+            <p>Fewer beds for usual days. Easier to staff and use, but busy days may run short.</p>
           </article>
           <article class="strategy-card">
-            <div class="strategy-heading"><span>B0.01</span><strong id="card001">—</strong></div>
-            <p>Provides stronger protection against surges, but requires more beds and can reduce routine utilization.</p>
+            <div class="strategy-heading"><div class="strategy-title"><span>B0.01</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about B0.01" aria-expanded="false" data-popover-target="b001Popover">i</button><div id="b001Popover" class="info-popover" hidden><strong>B0.01</strong><p>This number of beds is chosen so that there is no more than a 1% chance that demand will rise above the target average utilization. It gives stronger protection than B0.05 and leaves more room for unexpected surges. The trade-off is that more beds must be funded and staffed, and some may often remain unused.</p></div></div></div><strong id="card001">—</strong></div>
+            <p>More beds for extra protection. Safer for surges, but some beds may stay empty.</p>
           </article>
           <article class="strategy-card">
-            <div class="strategy-heading"><span>Bmax</span><strong id="cardMax">—</strong></div>
-            <p>Plans around peak expected demand with a buffer, offering strong protection but the greatest risk of underutilization.</p>
+            <div class="strategy-heading"><div class="strategy-title"><span>Bmax</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about Bmax" aria-expanded="false" data-popover-target="bmaxPopover">i</button><div id="bmaxPopover" class="info-popover" hidden><strong>Bmax</strong><p>This number starts with the busiest day the model expects and then adds an extra safety cushion. Its benefit is that each site is better prepared for the highest predicted demand. However, it does not promise a specific 5% or 1% overflow-risk target, and the extra beds may be unused during normal periods.</p></div></div></div><strong id="cardMax">—</strong></div>
+            <p>Most extra beds for the busiest predicted days. Strong cushion, but more unused capacity.</p>
           </article>
         </section>
 
@@ -150,7 +151,7 @@
                   <h2>Expected occupancy</h2>
                   <button class="legend-help" type="button" aria-label="Legend controls: click a legend item to show or hide it; double-click a legend item to isolate it." data-tooltip="Click a legend item to show or hide it. Double-click a legend item to isolate it.">i</button>
                 </div>
-                <p>Expected occupied beds over the forecasting window.</p>
+                <p>Expected occupied beds over the forecasting window under the recommended strategy.</p>
               </div>
             </div>
             <div id="occupancyChart" class="chart" aria-label="Expected occupancy chart"></div>
@@ -163,7 +164,7 @@
                   <h2>Utilization</h2>
                   <button class="legend-help" type="button" aria-label="Legend controls: click a legend item to show or hide it; double-click a legend item to isolate it." data-tooltip="Click a legend item to show or hide it. Double-click a legend item to isolate it.">i</button>
                 </div>
-                <p>Expected utilization under the selected capacity strategy.</p>
+                <p>Expected percentage of beds in use over the forecasting window under the selected capacity strategy.</p>
               </div>
               <label class="compact-select">Capacity strategy
                 <select id="strategySelect">
@@ -174,14 +175,14 @@
                 </select>
               </label>
             </div>
-            <div id="utilizationChart" class="chart" aria-label="Utilization chart"></div>
+                        <div id="utilizationChart" class="chart" aria-label="Utilization chart"></div>
           </article>
 
           <article class="chart-panel">
             <div class="panel-header">
               <div>
                 <h2>Capacity by site</h2>
-                <p>Bed recommendations under each planning strategy.</p>
+                <p>Recommended number of beds at each site under each capacity strategy.</p>
               </div>
             </div>
             <div id="capacityChart" class="chart" aria-label="Capacity by site chart"></div>
@@ -206,10 +207,10 @@
     </main>
   </div>
 
-  <script src="js/math.js?v=5.5.3"></script>
-  <script src="js/distributions.js?v=5.5.3"></script>
-  <script src="js/preprocessing.js?v=5.5.3"></script>
-  <script src="js/model.js?v=5.5.3"></script>
-  <script src="js/app.js?v=5.5.3"></script>
+  <script src="js/math.js?v=5.7.2"></script>
+  <script src="js/distributions.js?v=5.7.2"></script>
+  <script src="js/preprocessing.js?v=5.7.2"></script>
+  <script src="js/model.js?v=5.7.2"></script>
+  <script src="js/app.js?v=5.7.3"></script>
 </body>
 </html>

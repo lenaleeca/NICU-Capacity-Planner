@@ -4,7 +4,7 @@ A GitHub Pages–compatible dashboard for ICU/NICU bed occupancy and capacity pl
 
 The clinical-facing workflow is:
 
-**Use test data or upload patient-stay data → compare demand scenarios → review capacity → download results**
+**View demo model output or upload patient-stay data → compare demand scenarios → review capacity → download results**
 
 ## Run locally
 
@@ -53,7 +53,7 @@ The manuscript does not specify the numerical statistic used to compare rolling-
 
 ## Current interface
 
-- Two data sources only: built-in test data or uploaded patient-stay data
+- Two data sources only: built-in demo model output or uploaded patient-stay data
 - Automatic manuscript-method preprocessing for uploaded data
 - Automatic LOS distribution fitting independent of site labels
 - Lower, current, and higher admission-demand scenarios
@@ -102,3 +102,26 @@ Apache License 2.0. See `LICENSE`.
 - The daily occupancy CSV uses the numeric day field and does not include a date column.
 - The separate demand-scenario CSV and automatic LOS-fitting CSV have been removed from the clinical-facing download panel.
 - Exported PNG graphs and graphs embedded in the PDF use solid white backgrounds.
+
+
+## Version 5.7 interface updates
+
+- Renamed **Use test data** to **View demo model output** while keeping the downloadable patient-stay test file in the upload section.
+- Simplified the required-format panel wording.
+- Added clickable info-popups for B0.05, Baverage, B0.01, and Bmax with fuller plain-language explanations.
+- Updated the recommendation copy so balanced planning is explained more clearly.
+- Made the graph subtitle language more consistent and more interpretive.
+- Adjusted the utilization-chart legend behaviour for smaller screens.
+
+### Version 5.7.1 refinements
+
+- Upload controls, the downloadable test CSV, and the required-format panel are shown only when **Upload patient-stay data** is selected.
+- Replaced the remaining use of “unit” in the B-strategy explanations with site-based wording.
+- B-strategy popups are positioned within the browser viewport so explanations are not cut off at the screen edge.
+
+
+## Version 5.7.2 phone legend fix
+
+- On narrow phone screens, the utilization legend now uses three deliberate rows: Sites 1–3, Sites 4–5, and the two target lines. This prevents the Site 5 label from being clipped.
+
+- Version 5.7.5 removes the custom mobile utilization legend and restores the same Plotly legend typography used by the expected-occupancy graph, with additional top spacing so all five sites and both target lines remain visible.

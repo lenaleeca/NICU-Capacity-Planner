@@ -125,3 +125,68 @@ Apache License 2.0. See `LICENSE`.
 - On narrow phone screens, the utilization legend now uses three deliberate rows: Sites 1–3, Sites 4–5, and the two target lines. This prevents the Site 5 label from being clipped.
 
 - Version 5.7.5 removes the custom mobile utilization legend and restores the same Plotly legend typography used by the expected-occupancy graph, with additional top spacing so all five sites and both target lines remain visible.
+
+## Version 6.1 interface updates
+
+- Renamed **View demo model output** to **View demo example**.
+- Replaced the top occupancy statistics with **Average expected utilization** and **Highest site-specific expected utilization**, calculated under the recommended B0.05 strategy.
+- Renamed the capacity-setting labels to **Target average utilization rate** and **Target maximum utilization rate**.
+- Revised all B-strategy information popups to use a consistent definition-and-example structure and clarified that Bmax refers to maximum expected occupancy, not necessarily the largest capacity recommendation.
+- Moved the two line-graph explanations and legend instructions into their information icons.
+- Renamed **Utilization** to **Expected utilization**.
+- Added a **Key definitions** panel for capacity, occupancy, and utilization beneath the downloads panel.
+- Added the full manuscript citation and an external **View manuscript (PDF)** link.
+
+
+## Version 6.1.2 layout polish
+
+- Renamed the KPI to **Highest expected site-specific utilization**.
+- Adjusted the four KPI card widths so the longer third title has more room and the sites card is narrower.
+- Removed the Key definitions heading.
+- Added bed, occupancy, and utilization icons to the definitions.
+- Matched the definitions and manuscript-reference cards in height, border, radius, background, padding, and shadow.
+
+
+## Version 6.1.5
+- Reduced the extra vertical space between the Expected capacity legend and bar plot.
+- Restored the “Model based on:” label.
+- Shifted the manuscript reference card slightly upward for cleaner bottom alignment.
+
+
+## Version 6.1.6
+
+- Reduced the internal gap between the Expected capacity legend and bars.
+- Shortened only the Expected capacity card so the reference card moves upward while preserving the shared 16 px gap between cards.
+- Kept “Model based on:” in the manuscript reference.
+
+
+## Version 6.1.7
+
+- Restored the Expected capacity graph to its full previous size.
+- Reduced only the internal gap between the legend and bars.
+- Tightened panel padding so the reference card remains aligned without shrinking the chart.
+
+
+## Version 6.1.8
+- Restored the full-size Expected capacity chart.
+- Shifted the entire Plotly chart upward without reducing bar or axis size.
+- Reduced only the internal whitespace above the legend and plotting area.
+
+
+## Version 6.1.9
+- Restores full Expected capacity chart dimensions.
+- Removes negative CSS margins.
+- Shifts the Plotly plotting area upward by reallocating top/bottom margins without changing plot height.
+- Keeps the legend immediately above the plotting area.
+
+## Version 6.2.0 layout correction
+- Rebuilt the lower dashboard as two independent vertical columns.
+- Removes the false blank space beneath the shorter top graph card while preserving a consistent 16px gap between every card.
+- Does not resize or reposition the Expected capacity graph internally.
+
+
+## Version 6.2.1
+- Removed the “Model based on:” heading from the manuscript reference card.
+- Kept the two-column independent-card layout and all other spacing unchanged.
+
+Version 6.2.2: Reference card flexes only enough on desktop to align the left and right column bottoms exactly.

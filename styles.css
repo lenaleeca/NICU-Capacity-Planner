@@ -309,7 +309,7 @@ summary:focus-visible {
 }
 
 .key-stats {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.18fr) minmax(0, 0.82fr);
 }
 
 .strategy-grid {
@@ -320,6 +320,8 @@ summary:focus-visible {
 .strategy-card,
 .chart-panel,
 .download-panel,
+.definition-panel,
+.reference-panel,
 .recommendation-panel {
   min-width: 0;
   border: 1px solid var(--line);
@@ -468,7 +470,9 @@ summary:focus-visible {
 }
 
 .chart-panel,
-.download-panel {
+.download-panel,
+.definition-panel,
+.reference-panel {
   padding: 18px;
 }
 
@@ -480,7 +484,8 @@ summary:focus-visible {
 }
 
 .panel-header h2,
-.download-panel h2 {
+.download-panel h2,
+.definition-panel h2 {
   margin: 0;
   font-size: 18px;
 }
@@ -522,7 +527,7 @@ summary:focus-visible {
   bottom: calc(100% + 8px);
   left: 50%;
   width: max-content;
-  max-width: 230px;
+  max-width: 360px;
   padding: 7px 9px;
   border-radius: 8px;
   background: var(--navy);
@@ -616,6 +621,85 @@ summary:focus-visible {
   width: 100%;
   min-width: 0;
   height: 390px;
+}
+
+
+.results-stack {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.results-stack .quick-downloads {
+  flex: 0 0 auto;
+}
+
+.definition-panel {
+  flex: 1 1 auto;
+  background: linear-gradient(150deg, #ffffff, #f6f8ff);
+}
+
+.definition-panel dl {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+}
+
+.definition-panel dl > div {
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--line);
+}
+
+.definition-panel dl > div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.definition-panel dt {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.definition-panel dd {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.manuscript-reference {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.manuscript-reference strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.manuscript-reference p {
+  margin: 5px 0 9px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.manuscript-reference a {
+  display: inline-block;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.manuscript-reference a:hover,
+.manuscript-reference a:focus-visible {
+  color: var(--blue-dark);
 }
 
 .quick-downloads {
@@ -744,5 +828,311 @@ summary:focus-visible {
 @media (max-width: 680px) {
   #utilizationChart.chart {
     height: 430px;
+  }
+}
+
+/* Version 6.1.2: aligned KPI hierarchy and matching lower cards */
+.lower-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.compact-panel {
+  min-height: 148px;
+  box-sizing: border-box;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(150deg, #ffffff, #f6f8ff);
+  box-shadow: var(--shadow);
+}
+
+.definition-panel,
+.reference-panel {
+  flex: none;
+}
+
+.definition-panel {
+  display: flex;
+  align-items: center;
+}
+
+.definition-panel dl {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+}
+
+.definition-panel dl > div {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 16px;
+  border-right: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.definition-panel dl > div:first-child {
+  padding-left: 0;
+}
+
+.definition-panel dl > div:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.definition-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid #9fb7ff;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--blue-dark);
+}
+
+.definition-icon svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.definition-copy {
+  min-width: 0;
+}
+
+.definition-panel dt {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.definition-panel dd {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.reference-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.reference-panel strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.reference-panel p {
+  margin: 6px 0 9px;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.reference-panel a {
+  width: fit-content;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.reference-panel a:hover,
+.reference-panel a:focus-visible {
+  color: var(--blue-dark);
+}
+
+@media (max-width: 1260px) {
+  .key-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .definition-panel {
+    align-items: stretch;
+  }
+
+  .definition-panel dl {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .definition-panel dl > div,
+  .definition-panel dl > div:first-child,
+  .definition-panel dl > div:last-child {
+    padding: 10px 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .definition-panel dl > div:first-child {
+    padding-top: 0;
+  }
+
+  .definition-panel dl > div:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+}
+
+
+/* Version 6.1.4: final lower-grid layout correction */
+.dashboard-grid {
+  align-items: start;
+  gap: 16px;
+}
+
+.lower-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.expected-capacity-panel,
+.quick-downloads,
+.definitions-above-downloads,
+.reference-under-chart {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.expected-capacity-panel {
+  align-self: start;
+}
+
+.expected-capacity-panel .chart {
+  height: 330px;
+}
+
+.definitions-above-downloads {
+  min-height: 0;
+  padding: 11px 18px;
+}
+
+.definitions-above-downloads dl {
+  margin: 0;
+}
+
+.reference-under-chart {
+  min-height: 0;
+  padding: 14px 18px;
+  justify-content: center;
+}
+
+.reference-under-chart p {
+  margin: 0 0 8px;
+}
+
+.quick-downloads {
+  height: auto;
+}
+
+@media (max-width: 900px) {
+  .expected-capacity-panel .chart {
+    height: 370px;
+  }
+}
+
+
+/* Version 6.1.7: preserve chart size while tightening internal spacing */
+.expected-capacity-panel {
+  padding: 12px 18px 6px;
+}
+
+.expected-capacity-panel .chart {
+  height: 360px;
+}
+
+.reference-under-chart {
+  padding: 10px 18px;
+}
+
+.reference-under-chart strong {
+  margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .expected-capacity-panel {
+    padding: 14px 18px 8px;
+  }
+
+  .expected-capacity-panel .chart {
+    height: 390px;
+  }
+}
+
+/* Version 6.1.9: preserve the full chart size; spacing is controlled in Plotly, not with CSS offsets */
+.expected-capacity-panel {
+  padding: 12px 18px 6px;
+}
+
+.expected-capacity-panel .chart {
+  height: 390px;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .expected-capacity-panel .chart {
+    height: 390px;
+    margin: 0;
+  }
+}
+
+/* Version 6.2.0: independent dashboard columns prevent unequal top-card heights from creating blank inter-card space */
+.dashboard-grid {
+  align-items: start;
+}
+
+.dashboard-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-column {
+    gap: 16px;
+  }
+}
+
+/* Version 6.2.2: exact desktop bottom alignment */
+@media (min-width: 901px) {
+  .dashboard-grid {
+    align-items: stretch;
+  }
+
+  .dashboard-column {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .dashboard-column:first-child .reference-under-chart {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-column:first-child .reference-under-chart {
+    flex: none;
   }
 }

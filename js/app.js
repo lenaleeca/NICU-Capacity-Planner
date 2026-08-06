@@ -265,13 +265,13 @@ function renderActiveScenario() {
 function renderStatistics() {
   const summary = state.summary;
   const recommended = Math.round(total(summary, "B_0.05"));
-  const averageOccupancy = total(summary, "mean_rho_t");
-  const peak = summary.length ? Math.max(...summary.map(row => Number(row.peak_rho_t) || 0)) : 0;
+  const totalAverageOccupancy = total(summary, "mean_rho_t");
+  const highestSitePeak = Math.max(...summary.map(row => Number(row.peak_rho_t) || 0));
   const days = inputSettings().days;
 
   $("statRecommended").textContent = `${recommended} beds`;
-  $("statAverageOccupancy").textContent = `${averageOccupancy.toFixed(1)} beds`;
-  $("statPeakOccupancy").textContent = `${peak.toFixed(1)} beds`;
+  $("statAverageOccupancy").textContent = `${totalAverageOccupancy.toFixed(1)} beds`;
+  $("statPeakOccupancy").textContent = `${highestSitePeak.toFixed(1)} beds`;
   $("statSites").textContent = String(summary.length);
   $("statWindow").textContent = `Forecasting window: ${days} days`;
   $("recommendedValue").textContent = `${recommended} beds`;
@@ -372,7 +372,7 @@ function renderUtilizationChart() {
     hoverinfo: "skip"
   });
 
-  const layout = commonLayout("Utilization (%)");
+  const layout = commonLayout("Expected utilization rate (%)");
   layout.margin.t = phone ? 150 : 96;
   layout.legend = phone ? {
     orientation: "h",
@@ -433,10 +433,10 @@ function renderCapacityChart() {
   }));
 
   const layout = commonLayout("Beds");
-  layout.margin = { t: 70, r: 70, b: 68, l: 70 };
+  layout.margin = { t: 0, r: 70, b: 72, l: 70 };
   layout.legend = {
     orientation: "h",
-    y: 1.16,
+    y: 1.0,
     yanchor: "bottom",
     x: 0.5,
     xanchor: "center",
@@ -549,7 +549,7 @@ async function downloadGraph(graphId) {
   const names = {
     occupancyChart: "expected-occupancy",
     utilizationChart: "utilization",
-    capacityChart: "capacity-by-site"
+    capacityChart: "expected-capacity"
   };
 
   try {
@@ -696,8 +696,8 @@ async function downloadCompleteReport() {
     doc.setFontSize(10);
     doc.setTextColor(71, 84, 103);
     doc.text(`Admission demand: ${scenario.label}`, 12, 24);
-    doc.text(`Target average utilization: ${Math.round(settings.gamma * 100)}%`, 12, 30);
-    doc.text(`Target maximum utilization: ${Math.round(settings.maxUtilization * 100)}%`, 105, 30);
+    doc.text(`Target average utilization rate: ${Math.round(settings.gamma * 100)}%`, 12, 30);
+    doc.text(`Target maximum utilization rate: ${Math.round(settings.maxUtilization * 100)}%`, 105, 30);
     doc.text(`Forecasting window: ${settings.days} days`, 210, 30);
 
     doc.setTextColor(20, 31, 55);
@@ -708,7 +708,7 @@ async function downloadCompleteReport() {
 
     addGraphPage(doc, "Expected occupancy", occupancyImage);
     addGraphPage(doc, "Utilization", utilizationImage);
-    addGraphPage(doc, "Capacity by site", capacityImage);
+    addGraphPage(doc, "Expected capacity", capacityImage);
 
     const filename = `nicu-capacity-complete-report-${state.activeScenario}.pdf`;
     doc.save(filename);

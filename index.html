@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Clinical-facing ICU and NICU bed occupancy and capacity planning dashboard">
   <title>NICU Capacity Planner</title>
-  <link rel="stylesheet" href="styles.css?v=5.7.3">
+  <link rel="stylesheet" href="styles.css?v=6.1.5">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
@@ -26,7 +26,7 @@
 
         <label for="inputMode">Data source</label>
         <select id="inputMode">
-          <option value="synthetic">View demo model output</option>
+          <option value="synthetic">View demo example</option>
           <option value="raw">Upload patient-stay data</option>
         </select>
 
@@ -62,13 +62,13 @@
       <section class="side-panel" aria-labelledby="settings-heading">
         <h2 id="settings-heading">3. Capacity settings</h2>
 
-        <label for="gamma">Target average utilization</label>
+        <label for="gamma">Target average utilization rate</label>
         <div class="number-with-suffix">
           <input id="gamma" type="number" value="0.85" min="0" max="2" step="0.01" inputmode="decimal">
           <span id="gammaPercent">85%</span>
         </div>
 
-        <label for="maxUtilization">Target maximum utilization</label>
+        <label for="maxUtilization">Target maximum utilization rate</label>
         <div class="number-with-suffix">
           <input id="maxUtilization" type="number" value="1" min="0" max="2" step="0.01" inputmode="decimal">
           <span id="maxUtilizationPercent">100%</span>
@@ -99,12 +99,12 @@
             <p>Total B0.05 beds across modelled sites</p>
           </article>
           <article class="stat-card">
-            <span>Average expected occupancy</span>
+            <span>Average expected utilization</span>
             <strong id="statAverageOccupancy">—</strong>
             <p>Combined daily average across sites</p>
           </article>
           <article class="stat-card">
-            <span>Highest site peak</span>
+            <span>Highest expected site-specific utilization</span>
             <strong id="statPeakOccupancy">—</strong>
             <p>Largest expected site-level peak</p>
           </article>
@@ -118,7 +118,7 @@
         <section class="recommendation-panel" aria-labelledby="recommendation-heading">
           <div class="recommendation-copy">
             <div class="recommendation-badge">Recommended</div>
-            <div class="title-with-help b-help-title"><h2 id="recommendation-heading">Use B0.05 for balanced planning</h2><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about B0.05" aria-expanded="false" data-popover-target="b005Popover">i</button><div id="b005Popover" class="info-popover" hidden><strong>B0.05 — Recommended</strong><p>This number of beds is chosen so that, on an average day, there is no more than a 5% chance that demand will rise above the target average utilization. With the default 85% target, it means each site should stay at or below 85% full most of the time, while still leaving some beds available for busier days. It provides a balance between having enough protection and avoiding too many empty beds.</p></div></div></div>
+            <div class="title-with-help b-help-title"><h2 id="recommendation-heading">Use B0.05 for balanced planning</h2><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about B0.05" aria-expanded="false" data-popover-target="b005Popover">i</button><div id="b005Popover" class="info-popover" hidden><strong>B0.05 — Recommended</strong><p>This number of beds is chosen so that, on an average day, there is no more than a 5% chance that demand will rise above the target average utilization rate. With an 85% utilization target, it means each site should stay at or below 85% full most of the time, while still leaving some beds available for busier days.</p></div></div></div>
             <p>Balanced planning means choosing enough beds so each site can usually stay at or below the target average utilization, while still keeping some beds free for busier days.</p>
           </div>
           <div class="recommendation-value">
@@ -130,87 +130,117 @@
 
         <section class="strategy-grid" aria-label="Capacity strategy comparison">
           <article class="strategy-card">
-            <div class="strategy-heading"><div class="strategy-title"><span>Baverage</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about Baverage" aria-expanded="false" data-popover-target="bAveragePopover">i</button><div id="bAveragePopover" class="info-popover" hidden><strong>Baverage</strong><p>This number is based mainly on how many beds are usually needed, with a small extra cushion added. It works well when demand stays close to normal. The benefit is that fewer beds are needed, making them easier to staff and use efficiently. The downside is that there may not be enough beds during unusually busy periods because this strategy does not set a specific overflow-risk limit.</p></div></div></div><strong id="cardAverage">—</strong></div>
+            <div class="strategy-heading"><div class="strategy-title"><span>Baverage</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about Baverage" aria-expanded="false" data-popover-target="bAveragePopover">i</button><div id="bAveragePopover" class="info-popover" hidden><strong>Baverage</strong><p>This number of beds is calculated from the average number of beds usually needed, then adds a small safety cushion for normal fluctuations. For example, if a site usually needs 20 beds, Baverage adds a few extra beds, but it does not set a specific limit on the chance of exceeding capacity during unusually busy periods.</p></div></div></div><strong id="cardAverage">—</strong></div>
             <p>Fewer beds for usual days. Easier to staff and use, but busy days may run short.</p>
           </article>
           <article class="strategy-card">
-            <div class="strategy-heading"><div class="strategy-title"><span>B0.01</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about B0.01" aria-expanded="false" data-popover-target="b001Popover">i</button><div id="b001Popover" class="info-popover" hidden><strong>B0.01</strong><p>This number of beds is chosen so that there is no more than a 1% chance that demand will rise above the target average utilization. It gives stronger protection than B0.05 and leaves more room for unexpected surges. The trade-off is that more beds must be funded and staffed, and some may often remain unused.</p></div></div></div><strong id="card001">—</strong></div>
+            <div class="strategy-heading"><div class="strategy-title"><span>B0.01</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about B0.01" aria-expanded="false" data-popover-target="b001Popover">i</button><div id="b001Popover" class="info-popover" hidden><strong>B0.01</strong><p>This number of beds is chosen so that, on an average day, there is no more than a 1% chance that demand will rise above the target average utilization rate. With an 85% utilization target, it means each site should stay at or below 85% full even more often than under B0.05, although more beds may remain unused on typical days.</p></div></div></div><strong id="card001">—</strong></div>
             <p>More beds for extra protection. Safer for surges, but some beds may stay empty.</p>
           </article>
           <article class="strategy-card">
-            <div class="strategy-heading"><div class="strategy-title"><span>Bmax</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about Bmax" aria-expanded="false" data-popover-target="bmaxPopover">i</button><div id="bmaxPopover" class="info-popover" hidden><strong>Bmax</strong><p>This number starts with the busiest day the model expects and then adds an extra safety cushion. Its benefit is that each site is better prepared for the highest predicted demand. However, it does not promise a specific 5% or 1% overflow-risk target, and the extra beds may be unused during normal periods.</p></div></div></div><strong id="cardMax">—</strong></div>
+            <div class="strategy-heading"><div class="strategy-title"><span>Bmax</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about Bmax" aria-expanded="false" data-popover-target="bmaxPopover">i</button><div id="bmaxPopover" class="info-popover" hidden><strong>Bmax</strong><p>This number of beds is calculated from the highest expected occupancy and then adds a safety cushion; Bmax refers to the maximum expected occupancy, not the largest capacity recommendation. For example, if the busiest expected day requires 30 occupied beds, Bmax adds a few more beds for that peak, but B0.05 or B0.01 may still recommend more because they use explicit utilization-rate and overflow-risk targets.</p></div></div></div><strong id="cardMax">—</strong></div>
             <p>Most extra beds for the busiest predicted days. Strong cushion, but more unused capacity.</p>
           </article>
         </section>
 
         <div class="dashboard-grid">
-          <article class="chart-panel">
-            <div class="panel-header">
-              <div>
-                <div class="title-with-help">
-                  <h2>Expected occupancy</h2>
-                  <button class="legend-help" type="button" aria-label="Legend controls: click a legend item to show or hide it; double-click a legend item to isolate it." data-tooltip="Click a legend item to show or hide it. Double-click a legend item to isolate it.">i</button>
+          <div class="dashboard-column">
+            <article class="chart-panel">
+              <div class="panel-header">
+                <div>
+                  <div class="title-with-help">
+                    <h2>Expected occupancy</h2>
+                    <button class="legend-help" type="button" aria-label="Expected occupied beds over the forecasting window under the recommended strategy. Click a legend item to show or hide it. Double-click a legend item to isolate it." data-tooltip="Expected occupied beds over the forecasting window under the recommended strategy. Click a legend item to show or hide it. Double-click a legend item to isolate it.">i</button>
+                  </div>
                 </div>
-                <p>Expected occupied beds over the forecasting window under the recommended strategy.</p>
               </div>
-            </div>
-            <div id="occupancyChart" class="chart" aria-label="Expected occupancy chart"></div>
-          </article>
-
-          <article class="chart-panel">
-            <div class="panel-header">
-              <div>
-                <div class="title-with-help">
-                  <h2>Utilization</h2>
-                  <button class="legend-help" type="button" aria-label="Legend controls: click a legend item to show or hide it; double-click a legend item to isolate it." data-tooltip="Click a legend item to show or hide it. Double-click a legend item to isolate it.">i</button>
+              <div id="occupancyChart" class="chart" aria-label="Expected occupancy chart"></div>
+            </article>
+            <article class="chart-panel expected-capacity-panel">
+              <div class="panel-header">
+                <div>
+                  <div class="title-with-help">
+                    <h2>Expected capacity</h2>
+                    <button class="legend-help" type="button" aria-label="Expected bed capacity at each site under each capacity strategy. Click a legend item to show or hide it. Double-click a legend item to isolate it." data-tooltip="Expected bed capacity at each site under each capacity strategy. Click a legend item to show or hide it. Double-click a legend item to isolate it.">i</button>
+                  </div>
                 </div>
-                <p>Expected percentage of beds in use over the forecasting window under the selected capacity strategy.</p>
               </div>
-              <label class="compact-select">Capacity strategy
-                <select id="strategySelect">
-                  <option value="B_0.05" selected>B0.05 — recommended</option>
-                  <option value="B_average">Baverage</option>
-                  <option value="B_0.01">B0.01</option>
-                  <option value="B_max">Bmax</option>
-                </select>
-              </label>
-            </div>
-                        <div id="utilizationChart" class="chart" aria-label="Utilization chart"></div>
-          </article>
+              <div id="capacityChart" class="chart" aria-label="Expected capacity chart"></div>
+            </article>
 
-          <article class="chart-panel">
-            <div class="panel-header">
+            <article class="reference-panel compact-panel reference-under-chart">
+              <p>Maryam Akbari-Moghaddam, Douglas G. Down, Na Li, Catherine Eastwood, Ayman Abou Mehrem, and Alexandra Howlett. <em>Data-Driven Bed Capacity Planning Using M<sub>t</sub>/G<sub>t</sub>/∞ Queueing Models with an Application to Neonatal Intensive Care Units.</em></p>
+              <a href="https://arxiv.org/pdf/2510.02852" target="_blank" rel="noopener noreferrer">View manuscript (PDF)</a>
+            </article>
+          </div>
+
+          <div class="dashboard-column">
+            <article class="chart-panel">
+              <div class="panel-header">
+                <div>
+                  <div class="title-with-help">
+                    <h2>Expected utilization</h2>
+                    <button class="legend-help" type="button" aria-label="Expected percentage of beds in use over the forecasting window under the selected capacity strategy. Click a legend item to show or hide it. Double-click a legend item to isolate it." data-tooltip="Expected percentage of beds in use over the forecasting window under the selected capacity strategy. Click a legend item to show or hide it. Double-click a legend item to isolate it.">i</button>
+                  </div>
+                </div>
+                <label class="compact-select">Capacity strategy
+                  <select id="strategySelect">
+                    <option value="B_0.05" selected>B0.05 — recommended</option>
+                    <option value="B_average">Baverage</option>
+                    <option value="B_0.01">B0.01</option>
+                    <option value="B_max">Bmax</option>
+                  </select>
+                </label>
+              </div>
+                          <div id="utilizationChart" class="chart" aria-label="Utilization chart"></div>
+            </article>
+            <article class="definition-panel compact-panel definitions-above-downloads" aria-label="Key definitions">
+              <dl>
+                <div>
+                  <span class="definition-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false"><path d="M3 7v11M21 10v8M3 15h18M6 11h5a2 2 0 0 1 2 2v2H6zM5 18v2M19 18v2"/></svg>
+                  </span>
+                  <span class="definition-copy"><dt>Capacity</dt><dd>The number of beds available at a site.</dd></span>
+                </div>
+                <div>
+                  <span class="definition-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3.5 19c.4-4 2.2-6 5.5-6s5.1 2 5.5 6M13.5 14c2.8-.8 5.9.5 6.8 5"/></svg>
+                  </span>
+                  <span class="definition-copy"><dt>Occupancy</dt><dd>The number of beds expected to be occupied.</dd></span>
+                </div>
+                <div>
+                  <span class="definition-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M12 12V6M12 12l4 2"/></svg>
+                  </span>
+                  <span class="definition-copy"><dt>Utilization</dt><dd>The percentage of available beds expected to be occupied.</dd></span>
+                </div>
+              </dl>
+            </article>
+
+            <article class="download-panel quick-downloads">
               <div>
-                <h2>Capacity by site</h2>
-                <p>Recommended number of beds at each site under each capacity strategy.</p>
+                <h2>Download graphs and results</h2>
               </div>
-            </div>
-            <div id="capacityChart" class="chart" aria-label="Capacity by site chart"></div>
-          </article>
-
-          <article class="download-panel quick-downloads">
-            <div>
-              <h2>Download graphs and results</h2>
-            </div>
-            <div class="download-actions">
-              <button class="download-primary" type="button" data-download="report">Download complete report PDF</button>
-              <button type="button" data-download="summary">Capacity summary CSV</button>
-              <button type="button" data-download="daily">Daily occupancy CSV</button>
-              <button type="button" data-graph="occupancyChart">Expected occupancy PNG</button>
-              <button type="button" data-graph="utilizationChart">Utilization PNG</button>
-              <button type="button" data-graph="capacityChart">Capacity by site PNG</button>
-            </div>
-          </article>
+              <div class="download-actions">
+                <button class="download-primary" type="button" data-download="report">Download complete report PDF</button>
+                <button type="button" data-download="summary">Capacity summary CSV</button>
+                <button type="button" data-download="daily">Daily occupancy CSV</button>
+                <button type="button" data-graph="occupancyChart">Expected occupancy PNG</button>
+                <button type="button" data-graph="utilizationChart">Expected utilization PNG</button>
+                <button type="button" data-graph="capacityChart">Expected capacity PNG</button>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
 
     </main>
   </div>
 
-  <script src="js/math.js?v=5.7.2"></script>
-  <script src="js/distributions.js?v=5.7.2"></script>
-  <script src="js/preprocessing.js?v=5.7.2"></script>
-  <script src="js/model.js?v=5.7.2"></script>
-  <script src="js/app.js?v=5.7.3"></script>
+  <script src="js/math.js?v=6.1.8"></script>
+  <script src="js/distributions.js?v=6.1.8"></script>
+  <script src="js/preprocessing.js?v=6.1.8"></script>
+  <script src="js/model.js?v=6.1.8"></script>
+  <script src="js/app.js?v=6.1.8"></script>
 </body>
 </html>

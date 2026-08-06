@@ -433,15 +433,6 @@ function renderCapacityChart() {
   }));
 
   const layout = commonLayout("Beds");
-  layout.margin = { t: 0, r: 70, b: 72, l: 70 };
-  layout.legend = {
-    orientation: "h",
-    y: 1.0,
-    yanchor: "bottom",
-    x: 0.5,
-    xanchor: "center",
-    font: { size: 11 }
-  };
   layout.barmode = "group";
   layout.xaxis.title = "Site";
   layout.hovermode = "closest";

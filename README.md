@@ -135,7 +135,7 @@ Apache License 2.0. See `LICENSE`.
 - Moved the two line-graph explanations and legend instructions into their information icons.
 - Renamed **Utilization** to **Expected utilization**.
 - Added a **Key definitions** panel for capacity, occupancy, and utilization beneath the downloads panel.
-- Added the full manuscript citation and an external **View manuscript (PDF)** link.
+- Added the full manuscript citation and an external **View manuscript.** link.
 
 
 ## Version 6.1.2 layout polish
@@ -190,3 +190,7 @@ Apache License 2.0. See `LICENSE`.
 - Kept the two-column independent-card layout and all other spacing unchanged.
 
 Version 6.2.2: Reference card flexes only enough on desktop to align the left and right column bottoms exactly.
+
+
+## Version 6.2.3
+- Standardized Expected capacity card padding, chart height, legend placement, and Plotly margins with Expected occupancy.

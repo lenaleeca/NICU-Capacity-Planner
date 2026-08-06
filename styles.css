@@ -1136,3 +1136,24 @@ summary:focus-visible {
     flex: none;
   }
 }
+
+
+/* Version 6.2.3: Expected capacity uses the same graph-card spacing system as the line charts */
+.expected-capacity-panel {
+  padding: 18px;
+}
+
+.expected-capacity-panel .chart {
+  height: 390px;
+  margin: 0;
+}
+
+@media (max-width: 620px) {
+  .expected-capacity-panel {
+    padding: 18px;
+  }
+
+  .expected-capacity-panel .chart {
+    height: 400px;
+  }
+}

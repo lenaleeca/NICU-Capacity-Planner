@@ -33,7 +33,9 @@ const $ = id => document.getElementById(id);
 const plotConfig = {
   responsive: true,
   displaylogo: false,
-  displayModeBar: false
+  displayModeBar: false,
+  scrollZoom: false,
+  doubleClick: false
 };
 
 function isPhoneWidth() {
@@ -42,6 +44,7 @@ function isPhoneWidth() {
 
 function setStatus(message, type = "") {
   const element = $("status");
+  if (!element) return;
   element.textContent = message;
   element.className = `status ${type}`.trim();
 }
@@ -295,13 +298,15 @@ function commonLayout(yTitle) {
       gridcolor: "#eef2f6",
       zerolinecolor: "#d0d5dd",
       title: "Day",
-      automargin: true
+      automargin: true,
+      fixedrange: true
     },
     yaxis: {
       gridcolor: "#eef2f6",
       zerolinecolor: "#d0d5dd",
       title: yTitle,
-      automargin: true
+      automargin: true,
+      fixedrange: true
     },
     legend: {
       orientation: "h",
@@ -311,7 +316,8 @@ function commonLayout(yTitle) {
       xanchor: "center",
       font: { size: 11 }
     },
-    hovermode: "x unified"
+    hovermode: "x unified",
+    dragmode: false
   };
 }
 
@@ -710,9 +716,13 @@ async function downloadCompleteReport() {
   }
 }
 
+let autoRunTimer = null;
 function markSettingsChanged() {
   updatePercentLabels();
-  if (state.daily.length) setStatus("Settings changed. Run the model to update the results.");
+  window.clearTimeout(autoRunTimer);
+  autoRunTimer = window.setTimeout(() => {
+    runModel();
+  }, 250);
 }
 
 
@@ -811,7 +821,10 @@ $("scenarioSelect").addEventListener("change", renderActiveScenario);
 $("strategySelect").addEventListener("change", renderUtilizationChart);
 $("inputMode").addEventListener("change", () => {
   updateInputMode();
-  setStatus("Data source changed. Run the model to update the results.");
+  if ($("inputMode").value === "synthetic") runModel();
+});
+$("dataFile").addEventListener("change", () => {
+  if ($("inputMode").value === "raw" && $("dataFile").files[0]) runModel();
 });
 $("gamma").addEventListener("input", markSettingsChanged);
 $("maxUtilization").addEventListener("input", markSettingsChanged);

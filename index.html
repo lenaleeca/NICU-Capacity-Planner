@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Clinical-facing ICU and NICU bed occupancy and capacity planning dashboard">
-  <title>NICU Capacity Planner</title>
-  <link rel="stylesheet" href="styles.css?v=6.1.5">
+  <title>Occupancy Planner</title>
+  <link rel="stylesheet" href="styles.css?v=6.2.6">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
@@ -14,10 +14,9 @@
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-icon" aria-hidden="true">N</div>
+        <span class="brand-logo-badge"><img class="brand-logo" src="assets/occupancy-planner-logo.png" alt="Occupancy Planner logo"></span>
         <div>
-          <h1>NICU Planner</h1>
-          <p>Bed occupancy and capacity planning</p>
+          <h1>Occupancy Planner</h1>
         </div>
       </div>
 
@@ -79,14 +78,12 @@
       </section>
 
       <button id="runBtn" class="primary-btn" type="button">Run model</button>
-      <div id="status" class="status" role="status" aria-live="polite">Ready.</div>
-      <p class="privacy-note">Uploaded files are processed in this browser. Do not use identifiable patient data on a public device.</p>
     </aside>
 
     <main class="content">
       <header class="hero">
         <div>
-          <h1>ICU/NICU bed occupancy planning</h1>
+          <h1>Intensive Care Bed Occupancy Planning</h1>
           <p>Upload data, compare demand scenarios, review the recommended capacity, and download the results.</p>
         </div>
       </header>
@@ -145,7 +142,7 @@
 
         <div class="dashboard-grid">
           <div class="dashboard-column">
-            <article class="chart-panel">
+            <article class="chart-panel occupancy-panel">
               <div class="panel-header">
                 <div>
                   <div class="title-with-help">
@@ -174,7 +171,7 @@
           </div>
 
           <div class="dashboard-column">
-            <article class="chart-panel">
+            <article class="chart-panel utilization-panel">
               <div class="panel-header">
                 <div>
                   <div class="title-with-help">
@@ -236,10 +233,10 @@
     </main>
   </div>
 
-  <script src="js/math.js?v=6.1.8"></script>
-  <script src="js/distributions.js?v=6.1.8"></script>
-  <script src="js/preprocessing.js?v=6.1.8"></script>
-  <script src="js/model.js?v=6.1.8"></script>
-  <script src="js/app.js?v=6.1.8"></script>
+  <script src="js/math.js?v=6.2.6"></script>
+  <script src="js/distributions.js?v=6.2.6"></script>
+  <script src="js/preprocessing.js?v=6.2.6"></script>
+  <script src="js/model.js?v=6.2.6"></script>
+  <script src="js/app.js?v=6.2.6"></script>
 </body>
 </html>

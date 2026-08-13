@@ -67,20 +67,28 @@ summary:focus-visible {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 20px;
 }
 
-.brand-icon {
+.brand-logo-badge {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
   display: grid;
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
   place-items: center;
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--blue), var(--cyan));
-  font-size: 20px;
-  font-weight: 800;
+  border-radius: 50%;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.brand-logo {
+  display: block;
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  transform: scale(1.08);
+  filter: saturate(1.12) contrast(1.08);
 }
 
 .brand h1 {
@@ -1155,5 +1163,61 @@ summary:focus-visible {
 
   .expected-capacity-panel .chart {
     height: 400px;
+  }
+}
+
+
+/* Version 6.2.5: mobile reading order keeps Expected utilization above the manuscript reference */
+@media (max-width: 900px) {
+  .dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .dashboard-column {
+    display: contents;
+  }
+
+  .occupancy-panel { order: 1; }
+  .expected-capacity-panel { order: 2; }
+  .utilization-panel { order: 3; }
+  .reference-under-chart { order: 4; }
+  .definitions-above-downloads { order: 5; }
+  .quick-downloads { order: 6; }
+}
+
+
+/* Version 6.2.6: final title, logo, and mobile chart refinements */
+@media (min-width: 1081px) {
+  .hero h1 {
+    max-width: none;
+    white-space: nowrap;
+    font-size: clamp(38px, 3.2vw, 50px);
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid > *,
+  .occupancy-panel,
+  .expected-capacity-panel,
+  .utilization-panel,
+  .reference-under-chart,
+  .definitions-above-downloads,
+  .quick-downloads {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    align-self: stretch;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 620px) {
+  .occupancy-panel .chart,
+  .utilization-panel .chart,
+  .expected-capacity-panel .chart {
+    width: 100% !important;
+    min-width: 0;
   }
 }

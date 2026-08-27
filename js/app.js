@@ -27,7 +27,9 @@ const state = {
   inputRows: [],
   raw: null,
   preprocessing: [],
-  rawWindowMax: 3650
+  rawWindowMax: 3650,
+  activeInput: null,
+  suppressAutoRun: false
 };
 
 const $ = id => document.getElementById(id);
@@ -66,12 +68,9 @@ function normalizeNumberInput(id, minimum, maximum, fallback, round=false) {
 
 function rawObservedWindowDays(rows) {
   const normalized = NICUPreprocessing.normalizeRaw(rows);
-  const bySite = groupBy(normalized, "site");
-  const spans = Object.values(bySite).map(records => {
-    const dates = records.map(record => record.admission_date).sort();
-    return NICUMath.daysBetween(dates[0], dates[dates.length - 1]) + 1;
-  });
-  return spans.length ? Math.max(...spans) : 30;
+  if (!normalized.length) return 30;
+  const dates = normalized.map(record => record.admission_date).sort();
+  return NICUMath.daysBetween(dates[0], dates[dates.length - 1]) + 1;
 }
 
 function normalizeCapacityInputs() {
@@ -136,6 +135,30 @@ function updatePercentLabels() {
   $("maxUtilizationPercent").textContent = `${Math.round(maximum * 100)}%`;
 }
 
+function resetRunSettings(mode, rawObservedDays=null) {
+  state.suppressAutoRun = true;
+  window.clearTimeout(autoRunTimer);
+
+  $("scenarioSelect").value = "baseline";
+  $("gamma").value = "0.85";
+  $("maxUtilization").value = "1";
+  $("strategySelect").value = "B_0.05";
+
+  if (mode === "raw") {
+    const observedDays = Math.max(30, Math.round(Number(rawObservedDays) || 30));
+    state.rawWindowMax = observedDays;
+    $("days").max = String(observedDays);
+    $("days").value = String(observedDays);
+  } else {
+    state.rawWindowMax = 3650;
+    $("days").max = "3650";
+    $("days").value = "365";
+  }
+
+  updatePercentLabels();
+  state.suppressAutoRun = false;
+}
+
 function updateInputMode() {
   const synthetic = $("inputMode").value === "synthetic";
   const uploadControls = $("uploadControls");
@@ -145,18 +168,12 @@ function updateInputMode() {
   if (synthetic) $("dataFile").value = "";
 }
 
-async function prepareInput() {
-  const mode = $("inputMode").value;
-  const { days } = inputSettings();
-  const file = $("dataFile").files[0];
-
+async function prepareSource(mode, days, parsedRaw=null) {
   state.raw = null;
   state.fits = [];
   state.preprocessing = [];
 
   if (mode === "synthetic") {
-    state.rawWindowMax = 3650;
-    $("days").max = "3650";
     const rows = NICUModel.synthetic(days);
     state.fits = Object.entries(NICUModel.PRESETS).map(([site, preset]) => ({
       site,
@@ -177,16 +194,11 @@ async function prepareInput() {
   if (mode !== "raw") {
     throw new Error("Choose either demo model output or patient-stay data.");
   }
-  if (!file) {
+  if (!parsedRaw) {
     throw new Error("Choose a CSV file before running the model.");
   }
 
-  const parsed = await parseFile(file);
-  state.rawWindowMax = rawObservedWindowDays(parsed);
-  $("days").max = String(Math.max(30, state.rawWindowMax));
-  normalizeCapacityInputs();
-  const rawDays = inputSettings().days;
-  const processed = NICUPreprocessing.processRawAdmissions(parsed, rawDays);
+  const processed = NICUPreprocessing.processRawAdmissions(parsedRaw, days);
   const configBySite = Object.fromEntries(processed.configs.map(row => [row.site, row]));
   const fitsMap = {};
   const fitRows = [];
@@ -222,6 +234,48 @@ async function prepareInput() {
   };
 }
 
+async function prepareInput() {
+  const mode = $("inputMode").value;
+  const file = $("dataFile").files[0];
+
+  if (mode === "synthetic") {
+    resetRunSettings("synthetic");
+    const { days } = inputSettings();
+    return {
+      prepared: await prepareSource("synthetic", days),
+      activeInput: { mode: "synthetic", rawRows: null }
+    };
+  }
+
+  if (mode !== "raw") {
+    throw new Error("Choose either demo model output or patient-stay data.");
+  }
+  if (!file) {
+    throw new Error("Choose a CSV file before running the model.");
+  }
+
+  const parsed = await parseFile(file);
+  const observedDays = rawObservedWindowDays(parsed);
+  resetRunSettings("raw", observedDays);
+  const { days } = inputSettings();
+
+  return {
+    prepared: await prepareSource("raw", days, parsed),
+    activeInput: { mode: "raw", rawRows: parsed }
+  };
+}
+
+async function prepareActiveInput() {
+  if (!state.activeInput) return null;
+
+  const { days } = inputSettings();
+  if (state.activeInput.mode === "synthetic") {
+    return prepareSource("synthetic", days);
+  }
+
+  return prepareSource("raw", days, state.activeInput.rawRows);
+}
+
 function modelSettings(prepared, scenarioKey) {
   const { gamma } = inputSettings();
   const scenario = SCENARIOS[scenarioKey];
@@ -255,30 +309,47 @@ function cleanCapacitySummary(summary, scenarioKey) {
   }));
 }
 
+async function analyzePrepared(prepared) {
+  state.inputRows = prepared.rows;
+  state.scenarios = {};
+
+  for (const scenarioKey of Object.keys(SCENARIOS)) {
+    const settings = modelSettings(prepared, scenarioKey);
+    state.scenarios[scenarioKey] = NICUModel.analyze(prepared.rows, settings, prepared.fitsMap);
+  }
+
+  state.activeScenario = $("scenarioSelect").value;
+  renderActiveScenario();
+}
+
 async function runModel() {
   const button = $("runBtn");
   button.disabled = true;
   setStatus("Analyzing data and running the model…");
 
   try {
-    const prepared = await prepareInput();
-    state.inputRows = prepared.rows;
-    state.scenarios = {};
-
-    for (const scenarioKey of Object.keys(SCENARIOS)) {
-      const settings = modelSettings(prepared, scenarioKey);
-      state.scenarios[scenarioKey] = NICUModel.analyze(prepared.rows, settings, prepared.fitsMap);
-    }
-
-    state.activeScenario = $("scenarioSelect").value;
-    renderActiveScenario();
-
+    const result = await prepareInput();
+    state.activeInput = result.activeInput;
+    await analyzePrepared(result.prepared);
     setStatus("Analysis complete", "success");
   } catch (error) {
     console.error(error);
     setStatus(`Error: ${error.message}`, "error");
   } finally {
     button.disabled = false;
+  }
+}
+
+async function rerunActiveModel() {
+  if (!state.activeInput) return;
+
+  try {
+    const prepared = await prepareActiveInput();
+    if (!prepared) return;
+    await analyzePrepared(prepared);
+  } catch (error) {
+    console.error(error);
+    setStatus(`Error: ${error.message}`, "error");
   }
 }
 
@@ -753,9 +824,10 @@ async function downloadCompleteReport() {
 let autoRunTimer = null;
 function markSettingsChanged() {
   updatePercentLabels();
+  if (state.suppressAutoRun) return;
   window.clearTimeout(autoRunTimer);
   autoRunTimer = window.setTimeout(() => {
-    runModel();
+    if (!state.suppressAutoRun) rerunActiveModel();
   }, 250);
 }
 
@@ -854,16 +926,33 @@ $("runBtn").addEventListener("click", runModel);
 $("scenarioSelect").addEventListener("change", renderActiveScenario);
 $("strategySelect").addEventListener("change", renderUtilizationChart);
 $("inputMode").addEventListener("change", () => {
+  state.suppressAutoRun = true;
+  window.clearTimeout(autoRunTimer);
   updateInputMode();
-  if ($("inputMode").value === "synthetic") {
-    state.rawWindowMax = 3650;
-    $("days").max = "3650";
-    normalizeCapacityInputs();
-    runModel();
-  }
+  window.setTimeout(() => {
+    state.suppressAutoRun = false;
+  }, 0);
 });
-$("dataFile").addEventListener("change", () => {
-  if ($("inputMode").value === "raw" && $("dataFile").files[0]) runModel();
+$("dataFile").addEventListener("change", async () => {
+  if ($("inputMode").value !== "raw") return;
+  const file = $("dataFile").files[0];
+  if (!file) return;
+
+  state.suppressAutoRun = true;
+  window.clearTimeout(autoRunTimer);
+
+  try {
+    // Parse once here only to catch an invalid CSV early.
+    // The model and forecasting window remain unchanged until Run model is pressed.
+    await parseFile(file);
+  } catch (error) {
+    console.error(error);
+    setStatus(`Error: ${error.message}`, "error");
+  } finally {
+    window.setTimeout(() => {
+      state.suppressAutoRun = false;
+    }, 0);
+  }
 });
 $("gamma").addEventListener("input", markSettingsChanged);
 $("maxUtilization").addEventListener("input", markSettingsChanged);

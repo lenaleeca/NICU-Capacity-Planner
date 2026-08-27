@@ -256,7 +256,7 @@ function reconstructObserved(records,start,end){
   return map;
 }
 
-function processRawAdmissions(input){
+function processRawAdmissions(input,windowDays=null){
   const raw=normalizeRaw(input);
   const groups=new Map();
   raw.forEach(record=>{
@@ -267,10 +267,14 @@ function processRawAdmissions(input){
   const daily=[],fitsInput={},configs=[];
   for(const[site,records]of groups){
     const start=records.reduce((minimum,record)=>record.admission_date<minimum?record.admission_date:minimum,records[0].admission_date);
-    const end=records.reduce((maximum,record)=>record.admission_date>maximum?record.admission_date:maximum,start);
-    const n=M.daysBetween(start,end)+1;
+    const observedEnd=records.reduce((maximum,record)=>record.admission_date>maximum?record.admission_date:maximum,start);
+    const observedDays=M.daysBetween(start,observedEnd)+1;
+    const requestedDays=Math.max(1,Math.round(Number(windowDays)||observedDays));
+    const n=Math.min(observedDays,requestedDays);
+    const end=M.addDays(start,n-1);
+    const analysisRecords=records.filter(record=>record.admission_date<=end);
     const byDate=new Map();
-    records.forEach(record=>{
+    analysisRecords.forEach(record=>{
       if(!byDate.has(record.admission_date))byDate.set(record.admission_date,[]);
       byDate.get(record.admission_date).push(record.los_days);
     });
@@ -288,9 +292,9 @@ function processRawAdmissions(input){
     const admissionStl=chooseStl(counts);
     const losStl=chooseStl(filledMeanLos);
     const varianceChoice=chooseRollingVariance(losStl.residual);
-    const observed=reconstructObserved(records,start,end);
-    const empiricalMeanLos=M.mean(records.map(record=>record.los_days));
-    const empiricalAdmissionRate=records.length/n;
+    const observed=reconstructObserved(analysisRecords,start,end);
+    const empiricalMeanLos=M.mean(analysisRecords.map(record=>record.los_days));
+    const empiricalAdmissionRate=analysisRecords.length/n;
 
     for(let i=0;i<n;i++)daily.push({
       site,
@@ -309,7 +313,7 @@ function processRawAdmissions(input){
       historical_admission_rate:empiricalAdmissionRate
     });
 
-    fitsInput[site]=records;
+    fitsInput[site]=analysisRecords;
     configs.push({
       site,
       admission_candidates_tested:admissionStl.candidatesTested,

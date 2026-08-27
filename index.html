@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Clinical-facing ICU and NICU bed occupancy and capacity planning dashboard">
   <title>Occupancy Planner</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <link rel="stylesheet" href="styles.css?v=6.2.6">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -63,13 +65,13 @@
 
         <label for="gamma">Target average utilization rate</label>
         <div class="number-with-suffix">
-          <input id="gamma" type="number" value="0.85" min="0" max="2" step="0.01" inputmode="decimal">
+          <input id="gamma" type="number" value="0.85" min="0.01" max="2" step="0.01" inputmode="decimal">
           <span id="gammaPercent">85%</span>
         </div>
 
         <label for="maxUtilization">Target maximum utilization rate</label>
         <div class="number-with-suffix">
-          <input id="maxUtilization" type="number" value="1" min="0" max="2" step="0.01" inputmode="decimal">
+          <input id="maxUtilization" type="number" value="1" min="0.01" max="2" step="0.01" inputmode="decimal">
           <span id="maxUtilizationPercent">100%</span>
         </div>
 
@@ -136,7 +138,7 @@
           </article>
           <article class="strategy-card">
             <div class="strategy-heading"><div class="strategy-title"><span>Bmax</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about Bmax" aria-expanded="false" data-popover-target="bmaxPopover">i</button><div id="bmaxPopover" class="info-popover" hidden><strong>Bmax</strong><p>This number of beds is calculated from the highest expected occupancy and then adds a safety cushion; Bmax refers to the maximum expected occupancy, not the largest capacity recommendation. For example, if the busiest expected day requires 30 occupied beds, Bmax adds a few more beds for that peak, but B0.05 or B0.01 may still recommend more because they use explicit utilization-rate and overflow-risk targets.</p></div></div></div><strong id="cardMax">—</strong></div>
-            <p>Most extra beds for the busiest predicted days. Strong cushion, but more unused capacity.</p>
+            <p>Planning for the busiest predicted days. Strong cushion, but more unused capacity.</p>
           </article>
         </section>
 

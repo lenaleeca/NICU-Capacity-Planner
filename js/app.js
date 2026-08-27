@@ -26,7 +26,8 @@ const state = {
   fits: [],
   inputRows: [],
   raw: null,
-  preprocessing: []
+  preprocessing: [],
+  rawWindowMax: 3650
 };
 
 const $ = id => document.getElementById(id);
@@ -53,6 +54,37 @@ function clampNumber(value, minimum, maximum, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(maximum, Math.max(minimum, parsed));
+}
+
+function normalizeNumberInput(id, minimum, maximum, fallback, round=false) {
+  const input = $(id);
+  const value = clampNumber(input.value, minimum, maximum, fallback);
+  const normalized = round ? Math.round(value) : value;
+  input.value = String(normalized);
+  return normalized;
+}
+
+function rawObservedWindowDays(rows) {
+  const normalized = NICUPreprocessing.normalizeRaw(rows);
+  const bySite = groupBy(normalized, "site");
+  const spans = Object.values(bySite).map(records => {
+    const dates = records.map(record => record.admission_date).sort();
+    return NICUMath.daysBetween(dates[0], dates[dates.length - 1]) + 1;
+  });
+  return spans.length ? Math.max(...spans) : 30;
+}
+
+function normalizeCapacityInputs() {
+  normalizeNumberInput("gamma", 0.01, 2, 0.85);
+  normalizeNumberInput("maxUtilization", 0.01, 2, 1);
+
+  const maximumDays = $("inputMode").value === "raw"
+    ? Math.max(30, Number(state.rawWindowMax) || 30)
+    : 3650;
+
+  $("days").max = String(maximumDays);
+  normalizeNumberInput("days", 30, maximumDays, Math.min(365, maximumDays), true);
+  updatePercentLabels();
 }
 
 function total(rows, key) {
@@ -87,23 +119,19 @@ function parseFile(file) {
 }
 
 function inputSettings() {
-  const gamma = clampNumber($("gamma").value, 0, 2, 0.85);
-  const maxUtilization = clampNumber($("maxUtilization").value, 0, 2, 1);
-  const days = Math.round(clampNumber($("days").value, 30, 3650, 365));
-
-  if (gamma <= 0) {
-    throw new Error("Target average utilization must be greater than 0.");
-  }
-  if (maxUtilization <= 0) {
-    throw new Error("Target maximum utilization must be greater than 0.");
-  }
+  const gamma = clampNumber($("gamma").value, 0.01, 2, 0.85);
+  const maxUtilization = clampNumber($("maxUtilization").value, 0.01, 2, 1);
+  const maximumDays = $("inputMode").value === "raw"
+    ? Math.max(30, Number(state.rawWindowMax) || 30)
+    : 3650;
+  const days = Math.round(clampNumber($("days").value, 30, maximumDays, Math.min(365, maximumDays)));
 
   return { gamma, maxUtilization, days };
 }
 
 function updatePercentLabels() {
-  const gamma = clampNumber($("gamma").value, 0, 2, 0.85);
-  const maximum = clampNumber($("maxUtilization").value, 0, 2, 1);
+  const gamma = clampNumber($("gamma").value, 0.01, 2, 0.85);
+  const maximum = clampNumber($("maxUtilization").value, 0.01, 2, 1);
   $("gammaPercent").textContent = `${Math.round(gamma * 100)}%`;
   $("maxUtilizationPercent").textContent = `${Math.round(maximum * 100)}%`;
 }
@@ -127,6 +155,8 @@ async function prepareInput() {
   state.preprocessing = [];
 
   if (mode === "synthetic") {
+    state.rawWindowMax = 3650;
+    $("days").max = "3650";
     const rows = NICUModel.synthetic(days);
     state.fits = Object.entries(NICUModel.PRESETS).map(([site, preset]) => ({
       site,
@@ -152,7 +182,11 @@ async function prepareInput() {
   }
 
   const parsed = await parseFile(file);
-  const processed = NICUPreprocessing.processRawAdmissions(parsed);
+  state.rawWindowMax = rawObservedWindowDays(parsed);
+  $("days").max = String(Math.max(30, state.rawWindowMax));
+  normalizeCapacityInputs();
+  const rawDays = inputSettings().days;
+  const processed = NICUPreprocessing.processRawAdmissions(parsed, rawDays);
   const configBySite = Object.fromEntries(processed.configs.map(row => [row.site, row]));
   const fitsMap = {};
   const fitRows = [];
@@ -821,7 +855,12 @@ $("scenarioSelect").addEventListener("change", renderActiveScenario);
 $("strategySelect").addEventListener("change", renderUtilizationChart);
 $("inputMode").addEventListener("change", () => {
   updateInputMode();
-  if ($("inputMode").value === "synthetic") runModel();
+  if ($("inputMode").value === "synthetic") {
+    state.rawWindowMax = 3650;
+    $("days").max = "3650";
+    normalizeCapacityInputs();
+    runModel();
+  }
 });
 $("dataFile").addEventListener("change", () => {
   if ($("inputMode").value === "raw" && $("dataFile").files[0]) runModel();
@@ -829,6 +868,13 @@ $("dataFile").addEventListener("change", () => {
 $("gamma").addEventListener("input", markSettingsChanged);
 $("maxUtilization").addEventListener("input", markSettingsChanged);
 $("days").addEventListener("input", markSettingsChanged);
+
+["gamma", "maxUtilization", "days"].forEach(id => {
+  $(id).addEventListener("change", () => {
+    normalizeCapacityInputs();
+    markSettingsChanged();
+  });
+});
 
 let resizeTimer = null;
 window.addEventListener("resize", () => {
@@ -844,7 +890,7 @@ window.addEventListener("resize", () => {
 
 window.addEventListener("DOMContentLoaded", () => {
   updateInputMode();
-  updatePercentLabels();
+  normalizeCapacityInputs();
   initializeInfoPopovers();
 
   const missing = [];

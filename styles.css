@@ -102,6 +102,21 @@ summary:focus-visible {
   font-size: 12px;
 }
 
+.instruction-manual-link {
+  display: inline-block;
+  margin: -2px 0 18px;
+  color: var(--blue);
+  font-size: 16px;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.instruction-manual-link:hover,
+.instruction-manual-link:focus-visible {
+  color: var(--blue-dark);
+}
+
 .side-panel {
   margin-bottom: 12px;
   padding: 15px;

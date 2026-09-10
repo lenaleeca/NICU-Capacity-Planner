@@ -103,9 +103,11 @@ summary:focus-visible {
 }
 
 .instruction-manual-link {
-  display: inline-block;
+  display: block;
+  width: 100%;
   margin: -2px 0 18px;
-  color: var(--blue);
+  color: #fff;
+  text-align: right;
   font-size: 16px;
   line-height: 1.4;
   text-decoration: underline;
@@ -114,7 +116,7 @@ summary:focus-visible {
 
 .instruction-manual-link:hover,
 .instruction-manual-link:focus-visible {
-  color: var(--blue-dark);
+  color: #fff;
 }
 
 .side-panel {

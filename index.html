@@ -7,7 +7,7 @@
   <title>Occupancy Planner</title>
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=7.0.3">
+  <link rel="stylesheet" href="styles.css?v=7.1.2">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
@@ -48,6 +48,14 @@
               <p>One row per admission. Length of stay is measured in days.</p>
             </div>
           </details>
+        </div>
+
+        <div id="currentBedsSection" class="current-beds-section" hidden>
+          <div class="current-beds-heading">
+            <strong>Current beds</strong>
+            <p>Enter the current bed count for each site.</p>
+          </div>
+          <div id="currentBedsInputs" class="current-beds-inputs"></div>
         </div>
 
       </section>
@@ -97,7 +105,7 @@
           <article class="stat-card recommended-stat">
             <span>Recommended capacity</span>
             <strong id="statRecommended">—</strong>
-            <p>Total B0.05 beds across modelled sites</p>
+            <p>Total balanced strategy beds across modelled sites</p>
           </article>
           <article class="stat-card">
             <span>Average expected utilization</span>
@@ -119,7 +127,7 @@
         <section class="recommendation-panel" aria-labelledby="recommendation-heading">
           <div class="recommendation-copy">
             <div class="recommendation-badge">Recommended</div>
-            <div class="title-with-help b-help-title"><h2 id="recommendation-heading">Use B0.05 for balanced planning</h2><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about B0.05" aria-expanded="false" data-popover-target="b005Popover">i</button><div id="b005Popover" class="info-popover" hidden><strong>B0.05 — Recommended</strong><p>This number of beds is chosen so that, on an average day, there is no more than a 5% chance that demand will rise above the target average utilization rate. With an 85% utilization target, it means each site should stay at or below 85% full most of the time, while still leaving some beds available for busier days.</p></div></div></div>
+            <div class="title-with-help b-help-title"><h2 id="recommendation-heading">Balanced strategy</h2><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about balanced strategy" aria-expanded="false" data-popover-target="b005Popover">i</button><div id="b005Popover" class="info-popover" hidden><strong>Balanced strategy — Recommended</strong><p>This number of beds is chosen so that, on an average day, there is no more than a 5% chance that demand will rise above the target average utilization rate. With an 85% utilization target, it means each site should stay at or below 85% full most of the time, while still leaving some beds available for busier days.</p></div></div></div>
             <p>Balanced planning means choosing enough beds so each site can usually stay at or below the target average utilization, while still keeping some beds free for busier days.</p>
           </div>
           <div class="recommendation-value">
@@ -127,36 +135,30 @@
             <strong id="recommendedValue">—</strong>
             <p>total beds across sites</p>
           </div>
+          <div class="balanced-site-comparison">
+            <h3>Current beds compared with balanced strategy</h3>
+            <div class="balanced-comparison-wrap">
+              <table class="balanced-comparison-table">
+                <thead><tr><th>Site</th><th>Current beds</th><th>Balanced recommendation</th><th>Difference</th></tr></thead>
+                <tbody id="balancedComparisonBody"></tbody>
+              </table>
+            </div>
+          </div>
         </section>
 
         <section class="strategy-grid" aria-label="Capacity strategy comparison">
           <article class="strategy-card">
-            <div class="strategy-heading"><div class="strategy-title"><span>Baverage</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about Baverage" aria-expanded="false" data-popover-target="bAveragePopover">i</button><div id="bAveragePopover" class="info-popover" hidden><strong>Baverage</strong><p>This number of beds is calculated from the average number of beds usually needed, then adds a small safety cushion for normal fluctuations. For example, if a site usually needs 20 beds, Baverage adds a few extra beds, but it does not set a specific limit on the chance of exceeding capacity during unusually busy periods.</p></div></div></div><strong id="cardAverage">—</strong></div>
+            <div class="strategy-heading"><div class="strategy-title"><span>Least conservative strategy</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about Least conservative strategy" aria-expanded="false" data-popover-target="bAveragePopover">i</button><div id="bAveragePopover" class="info-popover" hidden><strong>Least conservative strategy</strong><p>This number of beds is calculated from the average number of beds usually needed, then adds a small safety cushion for normal fluctuations. For example, if a site usually needs 20 beds, this strategy adds a few extra beds, but it does not set a specific limit on the chance of exceeding capacity during unusually busy periods.</p></div></div></div><strong id="cardAverage">—</strong></div>
             <p>Fewer beds for usual days. Easier to staff and use, but busy days may run short.</p>
           </article>
           <article class="strategy-card">
-            <div class="strategy-heading"><div class="strategy-title"><span>B0.01</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about B0.01" aria-expanded="false" data-popover-target="b001Popover">i</button><div id="b001Popover" class="info-popover" hidden><strong>B0.01</strong><p>This number of beds is chosen so that, on an average day, there is no more than a 1% chance that demand will rise above the target average utilization rate. With an 85% utilization target, it means each site should stay at or below 85% full even more often than under B0.05, although more beds may remain unused on typical days.</p></div></div></div><strong id="card001">—</strong></div>
+            <div class="strategy-heading"><div class="strategy-title"><span>More conservative strategy</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about More conservative strategy" aria-expanded="false" data-popover-target="b001Popover">i</button><div id="b001Popover" class="info-popover" hidden><strong>More conservative strategy</strong><p>This number of beds is chosen so that, on an average day, there is no more than a 1% chance that demand will rise above the target average utilization rate. With an 85% utilization target, it means each site should stay at or below 85% full even more often than under the balanced strategy, although more beds may remain unused on typical days.</p></div></div></div><strong id="card001">—</strong></div>
             <p>More beds for extra protection. Safer for surges, but some beds may stay empty.</p>
-          </article>
-          <article class="strategy-card">
-            <div class="strategy-heading"><div class="strategy-title"><span>Bmax</span><div class="popover-wrap"><button class="info-popover-toggle" type="button" aria-label="More information about Bmax" aria-expanded="false" data-popover-target="bmaxPopover">i</button><div id="bmaxPopover" class="info-popover" hidden><strong>Bmax</strong><p>This number of beds is calculated from the highest expected occupancy and then adds a safety cushion; Bmax refers to the maximum expected occupancy, not the largest capacity recommendation. For example, if the busiest expected day requires 30 occupied beds, Bmax adds a few more beds for that peak, but B0.05 or B0.01 may still recommend more because they use explicit utilization-rate and overflow-risk targets.</p></div></div></div><strong id="cardMax">—</strong></div>
-            <p>Planning for the busiest predicted days. Strong cushion, but more unused capacity.</p>
           </article>
         </section>
 
         <div class="dashboard-grid">
           <div class="dashboard-column">
-            <article class="chart-panel occupancy-panel">
-              <div class="panel-header">
-                <div>
-                  <div class="title-with-help">
-                    <h2>Expected occupancy</h2>
-                    <button class="legend-help" type="button" aria-label="Expected occupied beds over the forecasting window under the recommended strategy. Click a legend item to show or hide it. Double-click a legend item to isolate it." data-tooltip="Expected occupied beds over the forecasting window under the recommended strategy. Click a legend item to show or hide it. Double-click a legend item to isolate it.">i</button>
-                  </div>
-                </div>
-              </div>
-              <div id="occupancyChart" class="chart" aria-label="Expected occupancy chart"></div>
-            </article>
             <article class="chart-panel expected-capacity-panel">
               <div class="panel-header">
                 <div>
@@ -169,12 +171,6 @@
               <div id="capacityChart" class="chart" aria-label="Expected capacity chart"></div>
             </article>
 
-            <article class="reference-panel compact-panel reference-under-chart">
-              <p>Maryam Akbari-Moghaddam, Douglas G. Down, Na Li, Catherine Eastwood, Ayman Abou Mehrem, and Alexandra Howlett. <em>Data-Driven Bed Capacity Planning Using M<sub>t</sub>/G<sub>t</sub>/∞ Queueing Models with an Application to Neonatal Intensive Care Units.</em> <a href="https://arxiv.org/pdf/2510.02852" target="_blank" rel="noopener noreferrer">View manuscript.</a></p>
-            </article>
-          </div>
-
-          <div class="dashboard-column">
             <article class="chart-panel utilization-panel">
               <div class="panel-header">
                 <div>
@@ -185,15 +181,42 @@
                 </div>
                 <label class="compact-select">Capacity strategy
                   <select id="strategySelect">
-                    <option value="B_0.05" selected>B0.05 — recommended</option>
-                    <option value="B_average">Baverage</option>
-                    <option value="B_0.01">B0.01</option>
-                    <option value="B_max">Bmax</option>
+                    <option value="B_0.05" selected>Balanced strategy</option>
+                    <option value="B_average">Least conservative strategy</option>
+                    <option value="B_0.01">More conservative strategy</option>
                   </select>
                 </label>
               </div>
-                          <div id="utilizationChart" class="chart" aria-label="Utilization chart"></div>
+              <div id="utilizationChart" class="chart" aria-label="Expected utilization chart"></div>
             </article>
+
+            <article class="reference-panel compact-panel reference-under-chart">
+              <p>Maryam Akbari-Moghaddam, Douglas G. Down, Na Li, Catherine Eastwood, Ayman Abou Mehrem, and Alexandra Howlett. <em>Data-Driven Bed Capacity Planning Using M<sub>t</sub>/G<sub>t</sub>/∞ Queueing Models with an Application to Neonatal Intensive Care Units.</em> <a href="https://arxiv.org/pdf/2510.02852" target="_blank" rel="noopener noreferrer">View manuscript.</a></p>
+            </article>
+          </div>
+
+          <div class="dashboard-column">
+            <article class="chart-panel utilization-summary-panel" aria-labelledby="utilization-summary-heading">
+              <div class="panel-header">
+                <div>
+                  <div class="title-with-help">
+                    <h2 id="utilization-summary-heading">Expected bed use by site</h2>
+                    <button class="legend-help" type="button" aria-label="Expected utilization is the modelled occupancy divided by the capacity under the selected strategy." data-tooltip="Expected utilization is the modelled occupancy divided by the capacity under the selected strategy.">i</button>
+                  </div>
+                </div>
+              </div>
+              <div class="utilization-summary-content utilization-by-site-summary">
+                <div class="utilization-summary-intro">
+                  <p>Average percentage of available beds expected to be in use under the balanced strategy.</p>
+                </div>
+                <div id="utilizationBySite" class="utilization-site-list" aria-live="polite"></div>
+                <div class="utilization-target-key">
+                  <span class="target-key-line" aria-hidden="true"></span>
+                  <span>Target average utilization: <strong id="utilizationTargetLabel">85%</strong></span>
+                </div>
+              </div>
+            </article>
+
             <article class="definition-panel compact-panel definitions-above-downloads" aria-label="Key definitions">
               <dl>
                 <div>
@@ -206,7 +229,7 @@
                   <span class="definition-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" focusable="false"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3.5 19c.4-4 2.2-6 5.5-6s5.1 2 5.5 6M13.5 14c2.8-.8 5.9.5 6.8 5"/></svg>
                   </span>
-                  <span class="definition-copy"><dt>Occupancy</dt><dd>The number of beds expected to be occupied.</dd></span>
+                  <span class="definition-copy"><dt>Occupancy</dt><dd>The observed number of occupied beds based on the analyzed data.</dd></span>
                 </div>
                 <div>
                   <span class="definition-icon" aria-hidden="true">
@@ -224,23 +247,27 @@
               <div class="download-actions">
                 <button class="download-primary" type="button" data-download="report">Download complete report PDF</button>
                 <button type="button" data-download="summary">Capacity summary CSV</button>
-                <button type="button" data-download="daily">Daily occupancy CSV</button>
-                <button type="button" data-graph="occupancyChart">Expected occupancy PNG</button>
+                <button type="button" data-download="daily">Daily observed occupancy CSV</button>
+                <button type="button" data-graph="occupancyChart">Observed occupancy PNG</button>
                 <button type="button" data-graph="utilizationChart">Expected utilization PNG</button>
                 <button type="button" data-graph="capacityChart">Expected capacity PNG</button>
               </div>
             </article>
           </div>
         </div>
+
+        <div class="download-only-chart" aria-hidden="true">
+          <div id="occupancyChart" class="chart" aria-label="Observed occupancy chart"></div>
+        </div>
       </section>
 
     </main>
   </div>
 
-  <script src="js/math.js?v=7.0.2"></script>
-  <script src="js/distributions.js?v=7.0.2"></script>
-  <script src="js/preprocessing.js?v=7.0.2"></script>
-  <script src="js/model.js?v=7.0.2"></script>
-  <script src="js/app.js?v=7.0.2"></script>
+  <script src="js/math.js?v=7.1.2"></script>
+  <script src="js/distributions.js?v=7.1.2"></script>
+  <script src="js/preprocessing.js?v=7.1.2"></script>
+  <script src="js/model.js?v=7.1.2"></script>
+  <script src="js/app.js?v=7.1.2"></script>
 </body>
 </html>

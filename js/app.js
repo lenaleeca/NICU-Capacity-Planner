@@ -29,7 +29,10 @@ const state = {
   preprocessing: [],
   rawWindowMax: 3650,
   activeInput: null,
-  suppressAutoRun: false
+  suppressAutoRun: false,
+  inputSites: [],
+  currentBeds: {},
+  comparisonReady: false
 };
 
 const $ = id => document.getElementById(id);
@@ -99,6 +102,84 @@ function groupBy(rows, key) {
   }, {});
 }
 
+function sortSites(sites) {
+  return [...new Set(sites.map(site => String(site).trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+}
+
+function sitesFromRawRows(rows) {
+  const normalized = NICUPreprocessing.normalizeRaw(rows);
+  return sortSites(normalized.map(row => row.site));
+}
+
+function setCurrentBedSites(sites, preserve=false) {
+  const nextSites = sortSites(sites);
+  const previous = preserve ? { ...state.currentBeds } : {};
+  state.inputSites = nextSites;
+  state.currentBeds = {};
+  nextSites.forEach(site => {
+    if (Number.isFinite(Number(previous[site])) && Number(previous[site]) >= 0) {
+      state.currentBeds[site] = Math.round(Number(previous[site]));
+    }
+  });
+  renderCurrentBedInputs();
+}
+
+function renderCurrentBedInputs() {
+  const section = $("currentBedsSection");
+  const container = $("currentBedsInputs");
+  if (!section || !container) return;
+
+  container.innerHTML = "";
+  section.hidden = state.inputSites.length === 0;
+  if (!state.inputSites.length) return;
+
+  state.inputSites.forEach(site => {
+    const row = document.createElement("label");
+    row.className = "current-bed-row";
+
+    const name = document.createElement("span");
+    name.textContent = site;
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.step = "1";
+    input.inputMode = "numeric";
+    input.className = "current-bed-input";
+    input.dataset.site = site;
+    input.placeholder = "Beds";
+    if (state.currentBeds[site] != null) input.value = String(state.currentBeds[site]);
+
+    input.addEventListener("input", () => {
+      const value = Number(input.value);
+      if (input.value !== "" && Number.isFinite(value) && value >= 0) {
+        state.currentBeds[site] = Math.round(value);
+      } else {
+        delete state.currentBeds[site];
+      }
+      renderBalancedComparison();
+    });
+
+    input.addEventListener("change", () => {
+      if (input.value === "") return;
+      const normalized = Math.max(0, Math.round(Number(input.value) || 0));
+      input.value = String(normalized);
+      state.currentBeds[site] = normalized;
+      renderBalancedComparison();
+    });
+
+    row.append(name, input);
+    container.appendChild(row);
+  });
+}
+
+function strategyDisplayName(key) {
+  if (key === "B_average") return "Least conservative strategy";
+  if (key === "B_0.01") return "More conservative strategy";
+  return "Balanced strategy";
+}
+
 function parseFile(file) {
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
@@ -160,12 +241,19 @@ function resetRunSettings(mode, rawObservedDays=null) {
 }
 
 function updateInputMode() {
+  state.comparisonReady = false;
   const synthetic = $("inputMode").value === "synthetic";
   const uploadControls = $("uploadControls");
 
   if (uploadControls) uploadControls.hidden = synthetic;
   $("dataFile").disabled = synthetic;
-  if (synthetic) $("dataFile").value = "";
+  if (synthetic) {
+    $("dataFile").value = "";
+    setCurrentBedSites(Object.keys(NICUModel.PRESETS));
+  } else {
+    setCurrentBedSites([]);
+  }
+  renderBalancedComparison();
 }
 
 async function prepareSource(mode, days, parsedRaw=null) {
@@ -300,12 +388,11 @@ function cleanCapacitySummary(summary, scenarioKey) {
   return summary.map(row => ({
     scenario: SCENARIOS[scenarioKey].label,
     site: row.site,
-    average_expected_occupancy: row.mean_rho_t,
-    peak_expected_occupancy: row.peak_rho_t,
-    Baverage: row.B_average,
-    "B0.05 (recommended strategy)": row["B_0.05"],
-    B0_01: row["B_0.01"],
-    Bmax: row.B_max
+    average_observed_occupancy: row.mean_rho_t,
+    peak_observed_occupancy: row.peak_rho_t,
+    least_conservative_strategy: row.B_average,
+    balanced_strategy: row["B_0.05"],
+    more_conservative_strategy: row["B_0.01"]
   }));
 }
 
@@ -330,9 +417,11 @@ async function runModel() {
   try {
     const result = await prepareInput();
     state.activeInput = result.activeInput;
+    state.comparisonReady = true;
     await analyzePrepared(result.prepared);
     setStatus("Analysis complete", "success");
   } catch (error) {
+    state.comparisonReady = false;
     console.error(error);
     setStatus(`Error: ${error.message}`, "error");
   } finally {
@@ -363,8 +452,10 @@ function renderActiveScenario() {
   state.daily = result.daily;
   renderStatistics();
   renderStrategyCards();
+  renderBalancedComparison();
   renderOccupancyChart();
   renderUtilizationChart();
+  renderUtilizationSummary();
   renderCapacityChart();
 
   window.setTimeout(() => window.dispatchEvent(new Event("resize")), 50);
@@ -389,7 +480,92 @@ function renderStrategyCards() {
   const summary = state.summary;
   $("cardAverage").textContent = `${Math.round(total(summary, "B_average"))} beds`;
   $("card001").textContent = `${Math.round(total(summary, "B_0.01"))} beds`;
-  $("cardMax").textContent = `${Math.round(total(summary, "B_max"))} beds`;
+}
+
+function renderBalancedComparison() {
+  const body = $("balancedComparisonBody");
+  if (!body) return;
+  body.innerHTML = "";
+
+  if (!state.comparisonReady || !state.summary.length) {
+    const row = document.createElement("tr");
+    row.className = "comparison-placeholder-row";
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    cell.textContent = "Run the model to view the site-by-site comparison.";
+    row.appendChild(cell);
+    body.appendChild(row);
+    return;
+  }
+
+  state.summary.forEach(summaryRow => {
+    const current = Number(state.currentBeds[summaryRow.site]);
+    const hasCurrent = Number.isFinite(current);
+    const balanced = Math.round(Number(summaryRow["B_0.05"]) || 0);
+    const difference = hasCurrent ? balanced - current : null;
+    const values = [
+      ["Site", summaryRow.site],
+      ["Current beds", hasCurrent ? String(current) : "Not entered"],
+      ["Balanced recommendation", String(balanced)],
+      ["Difference", difference == null ? "—" : `${difference > 0 ? "+" : ""}${difference}`]
+    ];
+    const row = document.createElement("tr");
+    values.forEach(([label, value]) => {
+      const cell = document.createElement("td");
+      cell.dataset.label = label;
+      cell.textContent = value;
+      row.appendChild(cell);
+    });
+    body.appendChild(row);
+  });
+}
+
+function renderUtilizationSummary() {
+  const container = $("utilizationBySite");
+  const targetLabel = $("utilizationTargetLabel");
+  if (!container || !targetLabel || !state.daily.length) return;
+
+  const strategy = "B_0.05";
+  const target = inputSettings().gamma * 100;
+  const grouped = groupBy(state.daily, "site");
+  container.innerHTML = "";
+  targetLabel.textContent = `${Math.round(target)}%`;
+
+  Object.entries(grouped).forEach(([site, rows]) => {
+    const values = rows
+      .map(row => 100 * Number(row.rho_t) / Number(row[strategy]))
+      .filter(Number.isFinite);
+    if (!values.length) return;
+
+    const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const row = document.createElement("div");
+    row.className = "utilization-site-row";
+    row.setAttribute("aria-label", `${site}: ${average.toFixed(1)}% average expected bed use; target average utilization ${Math.round(target)}%`);
+
+    const siteLabel = document.createElement("span");
+    siteLabel.className = "utilization-site-name";
+    siteLabel.textContent = site;
+
+    const track = document.createElement("div");
+    track.className = "utilization-site-track";
+    track.setAttribute("aria-hidden", "true");
+
+    const fill = document.createElement("span");
+    fill.className = "utilization-site-fill";
+    fill.style.width = `${Math.max(0, Math.min(100, average))}%`;
+
+    const marker = document.createElement("span");
+    marker.className = "utilization-target-marker";
+    marker.style.left = `${Math.max(0, Math.min(100, target))}%`;
+
+    const value = document.createElement("strong");
+    value.className = "utilization-site-value";
+    value.textContent = `${average.toFixed(1)}%`;
+
+    track.append(fill, marker);
+    row.append(siteLabel, track, value);
+    container.appendChild(row);
+  });
 }
 
 function commonLayout(yTitle) {
@@ -433,10 +609,10 @@ function renderOccupancyChart() {
     y: rows.map(row => row.rho_t),
     mode: "lines",
     name: site,
-    hovertemplate: "%{x}<br>%{y:.1f} expected beds<extra>%{fullData.name}</extra>"
+    hovertemplate: "%{x}<br>%{y:.1f} observed beds<extra>%{fullData.name}</extra>"
   }));
 
-  Plotly.react("occupancyChart", traces, commonLayout("Expected occupied beds"), plotConfig);
+  Plotly.react("occupancyChart", traces, commonLayout("Observed occupied beds"), plotConfig);
 }
 
 function renderUtilizationChart() {
@@ -528,25 +704,48 @@ function renderUtilizationChart() {
 }
 
 function renderCapacityChart() {
+  const phone = isPhoneWidth();
   const strategies = [
-    { key: "B_average", label: "Baverage" },
-    { key: "B_0.05", label: "B0.05" },
-    { key: "B_0.01", label: "B0.01" },
-    { key: "B_max", label: "Bmax" }
+    { key: "B_average", label: "Least conservative strategy" },
+    { key: "B_0.05", label: "Balanced strategy" },
+    { key: "B_0.01", label: "More conservative strategy" }
   ];
 
-  const traces = strategies.map(strategy => ({
-    x: state.summary.map(row => row.site),
-    y: state.summary.map(row => row[strategy.key]),
-    type: "bar",
-    name: strategy.label,
-    hovertemplate: "%{x}<br>%{y} beds<extra>%{fullData.name}</extra>"
-  }));
+  const traces = strategies.map(strategy => {
+    const values = state.summary.map(row => Math.round(Number(row[strategy.key]) || 0));
+    return {
+      x: state.summary.map(row => row.site),
+      y: values,
+      type: "bar",
+      name: strategy.label,
+      text: values.map(String),
+      textposition: "outside",
+      cliponaxis: false,
+      hovertemplate: "%{x}<br>%{y} beds<extra>%{fullData.name}</extra>"
+    };
+  });
 
   const layout = commonLayout("Beds");
   layout.barmode = "group";
   layout.xaxis.title = "Site";
   layout.hovermode = "closest";
+  layout.yaxis.rangemode = "tozero";
+  layout.margin.t = phone ? 150 : 96;
+  layout.legend = phone ? {
+    orientation: "v",
+    y: 1.36,
+    yanchor: "top",
+    x: 0,
+    xanchor: "left",
+    font: { family: "Inter, system-ui, sans-serif", size: 10, color: "#344054" }
+  } : {
+    orientation: "h",
+    y: 1.20,
+    yanchor: "bottom",
+    x: 0.5,
+    xanchor: "center",
+    font: { size: 11 }
+  };
   Plotly.react("capacityChart", traces, layout, plotConfig);
 }
 
@@ -561,11 +760,10 @@ function activeDailyDownload() {
     scenario: scenarioLabel,
     site: row.site,
     day: row.day,
-    expected_occupancy: row.rho_t,
-    Baverage: row.B_average,
-    B0_05: row["B_0.05"],
-    B0_01: row["B_0.01"],
-    Bmax: row.B_max
+    observed_occupancy: row.rho_t,
+    least_conservative_strategy: row.B_average,
+    balanced_strategy: row["B_0.05"],
+    more_conservative_strategy: row["B_0.01"]
   }));
 }
 
@@ -578,7 +776,7 @@ function downloadRows(type) {
     filename = `capacity-summary-${state.activeScenario}.csv`;
   } else if (type === "daily") {
     rows = activeDailyDownload();
-    filename = `daily-occupancy-${state.activeScenario}.csv`;
+    filename = `daily-observed-occupancy-${state.activeScenario}.csv`;
   } else {
     setStatus("That download is not available.", "error");
     return;
@@ -649,7 +847,7 @@ async function downloadGraph(graphId) {
   }
 
   const names = {
-    occupancyChart: "expected-occupancy",
+    occupancyChart: "observed-occupancy",
     utilizationChart: "utilization",
     capacityChart: "expected-capacity"
   };
@@ -675,22 +873,20 @@ function reportTableRows() {
     Number(row.peak_rho_t).toFixed(1),
     String(Math.round(Number(row.B_average) || 0)),
     String(Math.round(Number(row["B_0.05"]) || 0)),
-    String(Math.round(Number(row["B_0.01"]) || 0)),
-    String(Math.round(Number(row.B_max) || 0))
+    String(Math.round(Number(row["B_0.01"]) || 0))
   ]);
 }
 
 function drawReportTable(doc, rows, startY) {
   const margin = 12;
-  const widths = [38, 43, 40, 30, 58, 30, 30];
+  const widths = [34, 44, 44, 48, 48, 48];
   const headers = [
     ["Site"],
-    ["Average occupancy"],
-    ["Peak occupancy"],
-    ["Baverage"],
-    ["B0.05", "(recommended strategy)"],
-    ["B0.01"],
-    ["Bmax"]
+    ["Average observed", "occupancy"],
+    ["Peak observed", "occupancy"],
+    ["Least conservative", "strategy"],
+    ["Balanced", "strategy"],
+    ["More conservative", "strategy"]
   ];
   const headerHeight = 13;
   const rowHeight = 9;
@@ -704,7 +900,7 @@ function drawReportTable(doc, rows, startY) {
       doc.rect(x, y, widths[index], headerHeight, "FD");
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(index === 4 ? 7.2 : 8);
+      doc.setFontSize(7.2);
       headerLines.forEach((line, lineIndex) => {
         const textY = headerLines.length === 1 ? y + 8 : y + 5 + (lineIndex * 4);
         doc.text(line, x + 2, textY, { maxWidth: widths[index] - 4 });
@@ -808,8 +1004,8 @@ async function downloadCompleteReport() {
     doc.text("Capacity summary", 12, 41);
     drawReportTable(doc, reportTableRows(), 46);
 
-    addGraphPage(doc, "Expected occupancy", occupancyImage);
-    addGraphPage(doc, "Utilization", utilizationImage);
+    addGraphPage(doc, "Observed occupancy", occupancyImage);
+    addGraphPage(doc, "Expected utilization", utilizationImage);
     addGraphPage(doc, "Expected capacity", capacityImage);
 
     const filename = `nicu-capacity-complete-report-${state.activeScenario}.pdf`;
@@ -924,7 +1120,10 @@ document.querySelectorAll("[data-graph]").forEach(button => {
 
 $("runBtn").addEventListener("click", runModel);
 $("scenarioSelect").addEventListener("change", renderActiveScenario);
-$("strategySelect").addEventListener("change", renderUtilizationChart);
+$("strategySelect").addEventListener("change", () => {
+  renderUtilizationChart();
+  renderUtilizationSummary();
+});
 $("inputMode").addEventListener("change", () => {
   state.suppressAutoRun = true;
   window.clearTimeout(autoRunTimer);
@@ -942,9 +1141,12 @@ $("dataFile").addEventListener("change", async () => {
   window.clearTimeout(autoRunTimer);
 
   try {
-    // Parse once here only to catch an invalid CSV early.
+    // Parse once here to validate the CSV and identify sites for current-bed inputs.
     // The model and forecasting window remain unchanged until Run model is pressed.
-    await parseFile(file);
+    const parsed = await parseFile(file);
+    state.comparisonReady = false;
+    setCurrentBedSites(sitesFromRawRows(parsed));
+    renderBalancedComparison();
   } catch (error) {
     console.error(error);
     setStatus(`Error: ${error.message}`, "error");

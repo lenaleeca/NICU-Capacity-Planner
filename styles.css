@@ -1238,3 +1238,357 @@ summary:focus-visible {
     min-width: 0;
   }
 }
+
+/* Version 7.1.0: targeted CanQueue feedback updates. Existing V7 layout is preserved. */
+.strategy-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.current-beds-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.current-beds-section[hidden] {
+  display: none !important;
+}
+
+.current-beds-heading strong {
+  display: block;
+  color: #dbeafe;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.current-beds-heading p {
+  margin: 4px 0 8px;
+  color: #aebbd0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.current-beds-inputs {
+  display: grid;
+  gap: 7px;
+}
+
+.side-panel .current-bed-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.current-bed-row > span {
+  overflow: hidden;
+  color: #dbeafe;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-panel .current-bed-input {
+  min-height: 36px;
+  padding: 7px 8px;
+  text-align: right;
+}
+
+.balanced-site-comparison {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.balanced-site-comparison h3 {
+  margin: 0 0 10px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.balanced-comparison-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.balanced-comparison-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.balanced-comparison-table th,
+.balanced-comparison-table td {
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.balanced-comparison-table th {
+  background: #f6f8ff;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.balanced-comparison-table th:not(:first-child),
+.balanced-comparison-table td:not(:first-child) {
+  text-align: right;
+}
+
+.balanced-comparison-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.comparison-placeholder-row td {
+  color: var(--muted);
+  text-align: left !important;
+}
+
+.utilization-summary-panel {
+  min-height: 478px;
+  box-sizing: border-box;
+}
+
+.utilization-summary-content {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  margin-top: 24px;
+}
+
+.utilization-summary-panel {
+  display: flex;
+  min-height: 478px;
+  box-sizing: border-box;
+  flex-direction: column;
+}
+
+.utilization-summary-intro h3 {
+  margin: 0 0 5px;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.utilization-summary-intro p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.utilization-site-list {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-evenly;
+  gap: 10px;
+  margin: 16px 0;
+  overflow-y: auto;
+}
+
+.utilization-site-row {
+  display: grid;
+  grid-template-columns: minmax(68px, 0.8fr) minmax(140px, 4fr) 58px;
+  align-items: center;
+  gap: 12px;
+}
+
+.utilization-site-name {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.utilization-site-track {
+  position: relative;
+  height: 18px;
+  overflow: visible;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #eef2f8;
+}
+
+.utilization-site-fill {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -1px;
+  border-radius: 999px;
+  background: var(--blue);
+}
+
+.utilization-target-marker {
+  position: absolute;
+  z-index: 2;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  border-radius: 2px;
+  background: #8c564b;
+  transform: translateX(-1px);
+}
+
+.utilization-site-value {
+  color: var(--ink);
+  font-size: 13px;
+  text-align: right;
+}
+
+.utilization-target-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.utilization-target-key strong {
+  color: var(--ink);
+}
+
+.target-key-line {
+  width: 2px;
+  height: 16px;
+  flex: 0 0 2px;
+  border-radius: 2px;
+  background: #8c564b;
+}
+
+.download-only-chart {
+  position: fixed;
+  z-index: -1;
+  top: 0;
+  left: -10000px;
+  width: 1200px;
+  height: 720px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.download-only-chart .chart {
+  width: 1200px;
+  height: 680px;
+}
+
+@media (max-width: 900px) {
+  .expected-capacity-panel { order: 1; }
+  .utilization-summary-panel { order: 2; }
+  .utilization-panel { order: 3; }
+  .reference-under-chart { order: 4; }
+  .definitions-above-downloads { order: 5; }
+  .quick-downloads { order: 6; }
+
+  .utilization-summary-panel {
+    width: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 620px) {
+  .strategy-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .side-panel .current-bed-row {
+    grid-template-columns: minmax(0, 1fr) 84px;
+  }
+
+  .balanced-comparison-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .balanced-comparison-table,
+  .balanced-comparison-table tbody,
+  .balanced-comparison-table tr,
+  .balanced-comparison-table td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .balanced-comparison-table thead {
+    display: none;
+  }
+
+  .balanced-comparison-table tr {
+    margin-bottom: 9px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #ffffff;
+  }
+
+  .balanced-comparison-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .balanced-comparison-table td,
+  .balanced-comparison-table td:not(:first-child) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    padding: 8px 10px;
+    text-align: right;
+  }
+
+  .balanced-comparison-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+    text-align: left;
+  }
+
+  .comparison-placeholder-row td {
+    display: block;
+    text-align: left !important;
+  }
+
+  .comparison-placeholder-row td::before {
+    content: none;
+  }
+
+  .utilization-summary-content {
+    margin-top: 18px;
+  }
+
+  .utilization-site-row {
+    grid-template-columns: minmax(58px, 0.8fr) minmax(100px, 3fr) 52px;
+    gap: 8px;
+  }
+}
+
+
+/* v7.1.2: keep the replacement utilization-summary card in the exact desktop footprint
+   of the V7 Expected utilization card. On stacked/mobile layouts it returns to auto height. */
+@media (min-width: 901px) {
+  .utilization-summary-panel {
+    height: 478px;
+    min-height: 478px;
+  }
+}
+
+@media (max-width: 900px) {
+  .utilization-summary-panel {
+    height: auto;
+  }
+}

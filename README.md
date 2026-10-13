@@ -194,3 +194,7 @@ Version 6.2.2: Reference card flexes only enough on desktop to align the left an
 
 ## Version 6.2.3
 - Standardized Expected capacity card padding, chart height, legend placement, and Plotly margins with Expected occupancy.
+
+## KPI label correction (October 2026)
+
+- Corrected the two top summary-card headings to **Average expected occupancy** and **Highest expected site-specific occupancy**. Both metrics are reported in beds, not utilization percentages. Calculations and all other interface behaviour are unchanged.
